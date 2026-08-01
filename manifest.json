@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Utilities for X",
+  "version": "0.1.0",
+  "description": "A set of small quality-of-life utilities for x.com.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://x.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*"],
+      "js": ["src/content.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_title": "Utilities for X"
+  }
+}
