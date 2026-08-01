@@ -1,1 +1,38 @@
 /* Styles injected into x.com. Prefix every selector with ufx- to avoid collisions. */
+
+.ufx-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  max-width: 420px;
+  padding: 10px 16px;
+  border-radius: 9999px;
+  font: 600 14px/1.35 -apple-system, system-ui, sans-serif;
+  color: #fff;
+  background: #1d9bf0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  animation: ufx-toast-in 0.18s ease-out;
+  pointer-events: none;
+}
+
+.ufx-toast[data-kind="error"] {
+  background: #f4212e;
+}
+
+.ufx-toast-out {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+@keyframes ufx-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

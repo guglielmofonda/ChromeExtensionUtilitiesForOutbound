@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Utilities for X — DM templates</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app-header">
+        <div>
+          <h1>DM templates</h1>
+          <p class="subtitle">
+            Press a template's shortcut inside a DM on x.com to pre-fill the message —
+            you always review and hit Send yourself.
+          </p>
+        </div>
+        <span class="save-state" id="saveState" hidden>Saved</span>
+      </header>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <button class="btn btn-primary" id="newTemplate">New template</button>
+          <ul class="template-list" id="templateList"></ul>
+        </aside>
+
+        <section class="editor" id="editor" hidden>
+          <div class="field-row">
+            <div class="field grow">
+              <label for="tplName">Name</label>
+              <input type="text" id="tplName" placeholder="e.g. Event invite" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label>Shortcut</label>
+              <button class="shortcut-btn" id="shortcutBtn" title="Click, then press a key combo. Backspace clears, Esc cancels.">
+                Set shortcut
+              </button>
+            </div>
+          </div>
+          <p class="hint hint-warn" id="shortcutWarning" hidden></p>
+
+          <div class="field">
+            <label for="tplBody">Message</label>
+            <div class="chips" id="variableChips"></div>
+            <textarea id="tplBody" rows="7" placeholder="Hey {{first_name}}! …"></textarea>
+          </div>
+
+          <div class="field">
+            <label>Preview <span class="preview-meta">as sent to Jane Doe (@janedoe)</span></label>
+            <div class="preview" id="preview"></div>
+          </div>
+
+          <div class="editor-footer">
+            <button class="btn btn-danger" id="deleteTemplate">Delete template</button>
+          </div>
+        </section>
+
+        <section class="editor empty-state" id="emptyState">
+          <h2>No template selected</h2>
+          <p>Create a template, give it a shortcut, then press that shortcut inside any DM conversation on x.com.</p>
+        </section>
+      </div>
+
+      <section class="safety">
+        <h2>Keeping the account safe</h2>
+        <p class="safety-lede">
+          This tool only pre-fills the composer — it never sends, schedules, or scrapes. What X
+          actually enforces is <em>what and how much you send</em>, even manually:
+        </p>
+        <ul>
+          <li><strong>Duplicates are detected.</strong> Sending identical DMs (or the same link) to many accounts triggers a temporary DM block — X states this officially. Personalize beyond the first name and rotate templates.</li>
+          <li><strong>Pace like a human.</strong> Stay well under ~30–50 templated first-contact DMs a day, ≤ 10–15 an hour. The hard platform cap is 500/day; getting anywhere near it is itself a spam signal.</li>
+          <li><strong>No links in a first message.</strong> Share links after they reply.</li>
+          <li><strong>If you hit a soft block, stop for the day.</strong> Don't retry.</li>
+          <li><strong>Never automate the send.</strong> Auto-send, queueing, or bulk messaging is permanent-suspension territory. This extension will never do it.</li>
+        </ul>
+        <p class="safety-more">Full policy review with sources: <code>SAFETY.md</code> in the repo.</p>
+      </section>
+    </div>
+
+    <script src="template-lib.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>
