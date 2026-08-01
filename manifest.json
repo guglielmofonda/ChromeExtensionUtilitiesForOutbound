@@ -1,20 +1,26 @@
 {
   "manifest_version": 3,
   "name": "Utilities for X",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A set of small quality-of-life utilities for x.com.",
   "permissions": ["storage"],
   "host_permissions": ["https://x.com/*"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
   "content_scripts": [
     {
       "matches": ["https://x.com/*"],
-      "js": ["src/content.js"],
+      "js": ["src/template-lib.js", "src/dm-templates.js", "src/content.js"],
       "css": ["src/content.css"],
       "run_at": "document_idle"
     }
   ],
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
+  },
   "action": {
-    "default_popup": "src/popup.html",
-    "default_title": "Utilities for X"
+    "default_title": "Utilities for X — open template manager"
   }
 }

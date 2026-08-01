@@ -1,0 +1,79 @@
+<!doctype html>
+<!-- Integration harness: real Draft.js editor (what X uses for the DM composer)
+     + the actual content-script stack, against a mocked X DM DOM contract.
+     Serve the repo root and open /test/draftjs-harness.html. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Draft.js insertion harness</title>
+    <link rel="stylesheet" href="https://unpkg.com/draft-js@0.11.7/dist/Draft.css" />
+    <link rel="stylesheet" href="../src/content.css" />
+    <style>
+      body { font: 15px/1.5 -apple-system, system-ui, sans-serif; margin: 40px; }
+      section { max-width: 560px; }
+      .header a { color: inherit; text-decoration: none; font-weight: 700; }
+      .header a span { color: #666; font-weight: 400; }
+      .editor-shell { border: 1px solid #ccc; border-radius: 12px; padding: 12px; margin-top: 16px; min-height: 60px; }
+    </style>
+  </head>
+  <body>
+    <section>
+      <div class="header">
+        <div data-testid="UserAvatar-Container-janedoe" style="width:32px;height:32px;border-radius:50%;background:#1d9bf0"></div>
+        <a href="/janedoe">Jane Doe 🚀 | Building Things <span>@janedoe</span></a>
+      </div>
+      <div class="editor-shell" id="root"></div>
+    </section>
+
+    <script>
+      // chrome.* stub so the real content scripts run unmodified.
+      window.__harnessStore = {
+        enabled: {},
+        dmTemplates: {
+          version: 1,
+          templates: [
+            {
+              id: "t1", name: "Latest + company",
+              body: "hey {{first_name}}, what is the latest with {{company}}? are you a solo founder?",
+              shortcut: { code: "Digit1", alt: true, ctrl: false, meta: false, shift: false },
+              createdAt: 1, updatedAt: 1,
+            },
+            {
+              id: "t2", name: "Multi-line",
+              body: "Hey {{first_name}}! Loved what you're building.\nWant to grab coffee?",
+              shortcut: { code: "Digit2", alt: true, ctrl: false, meta: false, shift: false },
+              createdAt: 2, updatedAt: 2,
+            },
+          ],
+        },
+      };
+      window.chrome = {
+        storage: {
+          sync: { get: async (key) => ({ [key]: window.__harnessStore[key] }) },
+          onChanged: { addListener() {} },
+        },
+      };
+    </script>
+    <script src="https://unpkg.com/immutable@3.8.2/dist/immutable.min.js"></script>
+    <script src="https://unpkg.com/react@17.0.2/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@17.0.2/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/draft-js@0.11.7/dist/Draft.min.js"></script>
+    <script>
+      const { Editor, EditorState } = window.Draft;
+      function DmComposer() {
+        const [state, setState] = React.useState(() => EditorState.createEmpty());
+        window.__getEditorText = () => state.getCurrentContent().getPlainText("\n");
+        return React.createElement(Editor, {
+          editorState: state,
+          onChange: setState,
+          placeholder: "Start a new message",
+          webDriverTestID: "dmComposerTextInput",
+        });
+      }
+      ReactDOM.render(React.createElement(DmComposer), document.getElementById("root"));
+    </script>
+    <script src="../src/template-lib.js"></script>
+    <script src="../src/dm-templates.js"></script>
+    <script src="../src/content.js"></script>
+  </body>
+</html>
