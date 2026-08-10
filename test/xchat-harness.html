@@ -9,8 +9,9 @@
     <link rel="stylesheet" href="../src/content.css" />
     <style>
       body { margin: 0; background: #000; color: #e7e9ea; font: 15px/1.5 -apple-system, system-ui, sans-serif; }
-      main { width: min(680px, calc(100% - 32px)); margin: 32px auto; border: 1px solid #2f3336; border-radius: 16px; overflow: hidden; }
-      [data-testid="dm-conversation"] { min-height: 520px; display: flex; flex-direction: column; }
+      main { width: min(680px, calc(100% - 32px)); margin: 32px auto; }
+      .fixture { margin-bottom: 12px; padding: 10px 14px; border: 1px solid #2f3336; border-radius: 12px; color: #8b98a5; }
+      [data-testid="dm-conversation"] { min-height: 520px; display: flex; flex-direction: column; border: 1px solid #2f3336; border-radius: 16px; overflow: hidden; }
       header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #2f3336; }
       header img { width: 36px; height: 36px; border-radius: 50%; background: #1d9bf0; }
       .title { font-weight: 700; }
@@ -22,12 +23,13 @@
   </head>
   <body>
     <main>
+      <div class="fixture" id="fixtureBio"></div>
       <section data-testid="dm-conversation">
         <header data-testid="dm-conversation-header">
-          <a href="/builderswhoride" aria-label="Open Builders Who Ride profile">
+          <a id="profileLink" href="/builderswhoride" aria-label="Open Builders Who Ride profile">
             <img alt="user avatar" />
           </a>
-          <div class="title" data-testid="dm-conversation-title">Builders Who Ride</div>
+          <div id="profileTitle" class="title" data-testid="dm-conversation-title">Builders Who Ride</div>
         </header>
         <div class="messages">Dedicated test conversation</div>
         <div class="composer" data-testid="xchat-composer">
@@ -38,6 +40,33 @@
     </main>
 
     <script>
+      const params = new URLSearchParams(location.search);
+      const profileCase = params.get("case") || "strong";
+      const headerCase = params.get("header") || "sibling";
+      const transportCase = params.get("transport") || "direct";
+      const usesBackgroundTransport = transportCase.startsWith("background");
+      const profileBios = {
+        strong: "Co-founder & CEO at Builders Who Ride. Bike rides for builders in San Francisco.",
+        generic: "Bike rides for builders & founders in San Francisco 🚲",
+        conflicting: "Founder of Acme Labs. Building Other Co.",
+      };
+      window.__profileHandle = headerCase === "wrapped-status" ? "yiming" : "builderswhoride";
+      window.__profileBio = profileBios[profileCase] || profileBios.generic;
+      document.querySelector("#fixtureBio").textContent =
+        `Mock public bio (${profileCase}, ${headerCase} header, ${transportCase} transport): ${window.__profileBio}`;
+
+      if (headerCase === "wrapped-status") {
+        const link = document.querySelector("#profileLink");
+        const title = document.querySelector("#profileTitle");
+        link.href = "/yiming";
+        link.setAttribute("aria-label", "Open YiMing profile");
+        title.textContent = "YiMing";
+        link.append(title);
+        const status = document.createElement("span");
+        status.textContent = "Unencrypted";
+        link.append(status);
+      }
+
       window.__harnessStore = {
         enabled: {},
         dmTemplates: {
@@ -56,11 +85,39 @@
           ],
         },
       };
+      const profileHtml = () => {
+        const encoded = window.__profileBio
+          .replaceAll("&", "&amp;")
+          .replaceAll('"', "&quot;");
+        return `<html><head><meta name="description" content="${encoded}"></head></html>`;
+      };
       window.chrome = {
+        runtime: usesBackgroundTransport ? {
+          sendMessage: async (message) => {
+            if (message.type !== "ufx:profile-html" || message.handle !== window.__profileHandle) {
+              return { ok: false, error: "unexpected-request" };
+            }
+            if (transportCase === "background-rate-limited") {
+              return { ok: false, error: "http-429" };
+            }
+            return { ok: true, bio: window.__profileBio, source: "temporary profile tab" };
+          },
+        } : undefined,
         storage: {
           sync: { get: async (key) => ({ [key]: window.__harnessStore[key] }) },
           onChanged: { addListener() {} },
         },
+      };
+      window.fetch = async (input) => {
+        if (usesBackgroundTransport) throw new Error("Direct profile fetch should not run");
+        const url = new URL(String(input), location.origin);
+        if (url.pathname.toLowerCase() === `/${window.__profileHandle}`) {
+          return new Response(
+            profileHtml(),
+            { status: 200, headers: { "Content-Type": "text/html" } }
+          );
+        }
+        return new Response("Not found", { status: 404 });
       };
       window.__inputEvents = [];
       document.querySelector("textarea").addEventListener("input", (event) => {
