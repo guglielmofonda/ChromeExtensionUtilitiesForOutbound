@@ -7,7 +7,7 @@ A Chrome extension (Manifest V3) with small quality-of-life utilities for x.com.
 1. Open `chrome://extensions`
 2. Enable **Developer mode**
 3. **Load unpacked** → select this directory
-4. Reload the extension after any change to `manifest.json`; content-script edits only need a page refresh
+4. After any local code change, click **Reload** on the extension card, then refresh existing x.com tabs
 
 ## DM templates
 
@@ -25,8 +25,13 @@ the conversation header. Names are cleaned programmatically — emoji stripped,
 `| Building X`-style suffixes cut, `JANE` → `Jane`. If one can't be resolved (group
 chat, no header found) nothing is inserted and a toast explains why.
 
-`{{company}}` is a manual variable for now: it inserts a pre-selected `[company]`
-token, so your very next keystrokes replace it — type the company, hit Send.
+`{{company}}` checks the recipient's public X bio for explicit signals such as
+`Founder @WorkOS`, `CEO of Acme Labs`, or `Building Modal`. A single clear match is
+inserted and selected so you can review it immediately. Generic or conflicting bios
+fall back to a selected `[company]` token. When needed, the extension briefly opens
+the recipient's public X profile in an inactive tab, reads only its description metadata,
+then closes that tab and caches the result for the page session. It never calls an
+external AI or sends the message.
 
 Troubleshooting: in DevTools console, switch the JavaScript context from `top` to
 `Utilities for X`, then run `__ufxDmDebug()` to see the composer, recipient, route,
@@ -48,7 +53,7 @@ but X enforces duplicate/volume limits on human-sent DMs too.
 | `src/options.*`        | Template manager page (list, editor, shortcut recorder, preview) |
 | `src/content.css`      | Styles injected into x.com (prefix selectors `ufx-`)       |
 | `SAFETY.md`            | X ToS/policy review + operating guardrails                 |
-| `test/`                | Browser harnesses (no build needed): manager UI, classic Draft.js DMs, and current XChat textarea/header behavior |
+| `test/`                | Browser harnesses plus pure company-inference regression tests |
 
 ## Adding a utility
 
@@ -59,7 +64,6 @@ the rest. Per-utility on/off state lives in `chrome.storage.sync` under `enabled
 
 ## Roadmap
 
-- Auto-resolve `{{company}}` from the recipient's bio link (strip protocol + TLD), replacing the manual type-over placeholder
 - Daily send counter with soft-limit nudges (see `SAFETY.md` guardrails)
 - Link-in-first-message warning
 - Hosted web version of the template manager, synced to the extension

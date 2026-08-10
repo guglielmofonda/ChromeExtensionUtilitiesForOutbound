@@ -1,7 +1,8 @@
 // DM templates utility.
 // Press a configured shortcut inside a DM conversation to pre-fill the composer
-// with a template, substituting {{first_name}} / {{full_name}} / {{handle}} read
-// from the conversation header. Never sends — the human always clicks Send.
+// with a template, substituting recipient details read from the conversation
+// header and suggesting {{company}} from explicit bio language when possible.
+// Never sends — the human always clicks Send.
 
 (() => {
   const CLASSIC_COMPOSER_SELECTOR = '[data-testid="dmComposerTextInput"]';
@@ -22,6 +23,9 @@
   ]);
 
   let templates = [];
+  const companyLookupCache = new Map();
+  let lastCompanyLookup = null;
+  let templateRunInFlight = false;
 
   async function loadTemplates() {
     const { dmTemplates } = await chrome.storage.sync.get("dmTemplates");
@@ -123,6 +127,17 @@
     return null; // drawer or non-conversation page — unknown
   }
 
+  function cleanConversationName(raw, handle) {
+    let name = raw || "";
+    if (handle) name = name.replace(new RegExp(`@${handle}\\b`, "i"), " ");
+    name = name
+      .replace(/\bVerified account\b/gi, " ")
+      // XChat can put this status in the same profile link as the name, with
+      // no whitespace between their text nodes ("YiMingUnencrypted").
+      .replace(/\s*(?:unencrypted|encrypted)\s*$/i, " ");
+    return UfxTemplates.cleanDisplayName(name);
+  }
+
   function headerNameFrom(block, handle) {
     const directSelectors = [
       '[data-testid*="conversation-title" i]',
@@ -137,10 +152,8 @@
     rawCandidates.push(...(block.innerText || block.textContent || "").split(/\n+/));
 
     const generic = /^(chat|back|info|details|verified account|user avatar|encrypted|unencrypted)$/i;
-    for (let raw of rawCandidates) {
-      raw = raw.replace(new RegExp(`@${handle}\\b`, "i"), " ").trim();
-      raw = raw.replace(/\bVerified account\b/gi, " ").trim();
-      const cleaned = UfxTemplates.cleanDisplayName(raw);
+    for (const raw of rawCandidates) {
+      const cleaned = cleanConversationName(raw, handle);
       if (!cleaned || cleaned.length > 80 || generic.test(cleaned)) continue;
       if (cleaned.toLowerCase() === handle.toLowerCase()) continue;
       return cleaned;
@@ -161,7 +174,7 @@
 
       for (const link of links) {
         if (handleFromHref(link.getAttribute("href"))?.toLowerCase() !== handle.toLowerCase()) continue;
-        const text = UfxTemplates.cleanDisplayName(link.textContent);
+        const text = cleanConversationName(link.textContent, handle);
         const nameOnly = text.split(/@[A-Za-z0-9_]+/)[0].trim();
         if (nameOnly && nameOnly.toLowerCase() !== handle.toLowerCase()) {
           return { fullName: nameOnly, handle };
@@ -212,7 +225,7 @@
       const linkHandle = handleFromHref(link.getAttribute("href"));
       if (!linkHandle) continue;
       if (handle && linkHandle.toLowerCase() !== handle.toLowerCase()) continue;
-      const text = UfxTemplates.cleanDisplayName(link.textContent);
+      const text = cleanConversationName(link.textContent, linkHandle);
       // Skip links whose text is just the @handle or empty (avatar wrappers).
       if (!text || text.toLowerCase() === "@" + linkHandle.toLowerCase()) continue;
       const nameOnly = text.split(/@[A-Za-z0-9_]+/)[0].trim();
@@ -233,6 +246,163 @@
       handle: handle ?? "",
       reason: fullName ? "" : "no conversation header found",
     };
+  }
+
+  function templateUsesCompany(body) {
+    return /\{\{\s*company\s*\}\}|\{\s*company\s*\}/.test(body || "");
+  }
+
+  function visibleProfileBio(composer) {
+    const scope = conversationScope(composer);
+    const selectors = [
+      '[data-testid="UserDescription"]',
+      '[data-testid*="user-description" i]',
+      '[data-testid*="profile-bio" i]',
+    ];
+    for (const selector of selectors) {
+      for (const el of scope.querySelectorAll(selector)) {
+        const bio = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
+        if (bio && isVisible(el)) return bio;
+      }
+    }
+    return "";
+  }
+
+  function profileBioFromDocument(doc) {
+    const selectors = [
+      'meta[name="description"]',
+      'meta[property="og:description"]',
+      'meta[name="twitter:description"]',
+    ];
+    for (const selector of selectors) {
+      const bio = (doc.querySelector(selector)?.getAttribute("content") || "").replace(/\s+/g, " ").trim();
+      if (!bio || /^(?:log in|sign up|see new posts|from breaking news)/i.test(bio)) continue;
+      return bio;
+    }
+    return "";
+  }
+
+  function profileBioFromHtml(html) {
+    return profileBioFromDocument(new DOMParser().parseFromString(html, "text/html"));
+  }
+
+  if (chrome.runtime?.onMessage?.addListener) {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type !== "ufx:profile-page-bio") return undefined;
+      const expectedHandle = (message.handle || "").toLowerCase();
+      const pageHandle = decodeURIComponent(location.pathname.split("/")[1] || "").toLowerCase();
+      if (!expectedHandle || pageHandle !== expectedHandle) {
+        sendResponse({ ok: false, error: "profile-not-ready" });
+        return false;
+      }
+      const bio = profileBioFromDocument(document);
+      sendResponse(bio
+        ? { ok: true, bio }
+        : { ok: false, error: "profile-no-bio-metadata" });
+      return false;
+    });
+  }
+
+  async function fetchProfileBioDirect(handle) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4500);
+    try {
+      const response = await fetch(`${location.origin}/${handle}`, {
+        credentials: "include",
+        headers: { Accept: "text/html" },
+        signal: controller.signal,
+      });
+      if (!response.ok) return { bio: "", reason: `page-http-${response.status}` };
+      const bio = profileBioFromHtml(await response.text());
+      return { bio, reason: bio ? "" : "page-no-bio-metadata" };
+    } catch (error) {
+      return {
+        bio: "",
+        reason: error?.name === "AbortError" ? "page-timeout" : "page-network-error",
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function fetchProfileBio(handle) {
+    if (!/^[A-Za-z0-9_]{1,15}$/.test(handle || "")) {
+      return { bio: "", reason: "invalid-handle", transport: "none" };
+    }
+
+    const failures = [];
+    if (chrome.runtime?.sendMessage) {
+      try {
+        const response = await chrome.runtime.sendMessage({ type: "ufx:profile-html", handle });
+        if (response?.ok) {
+          const bio = response.bio || profileBioFromHtml(response.html || "");
+          const transport = response.source || "extension service worker";
+          if (bio) return { bio, reason: "", transport };
+          return {
+            bio: "",
+            reason: "worker-no-bio-metadata",
+            transport,
+          };
+        }
+        return {
+          bio: "",
+          reason: `worker-${response?.error || "no-response"}`,
+          transport: "extension service worker",
+        };
+      } catch {
+        failures.push("worker-message-error");
+      }
+    }
+
+    // Keep a direct same-origin fallback for test harnesses and for an old or
+    // temporarily unavailable background worker. X may intercept this path,
+    // so do not retry it after a definitive worker HTTP/network result.
+    const direct = await fetchProfileBioDirect(handle);
+    if (direct.bio) return { ...direct, transport: "page fallback" };
+    failures.push(direct.reason);
+    return { bio: "", reason: failures.filter(Boolean).join(", "), transport: "unavailable" };
+  }
+
+  async function lookupCompany(recipient, composer) {
+    const handle = recipient.handle?.toLowerCase();
+    if (!handle) return { status: "unavailable", company: "", source: "no handle", bioAvailable: false };
+    if (companyLookupCache.has(handle)) return companyLookupCache.get(handle);
+
+    const lookup = (async () => {
+      let bio = visibleProfileBio(composer);
+      let profileSource = "visible profile";
+      let failureReason = "";
+      if (!bio) {
+        const profile = await fetchProfileBio(recipient.handle);
+        profileSource = profile.transport;
+        failureReason = profile.reason;
+        bio = profile.bio;
+      }
+      if (!bio) {
+        return {
+          status: "unavailable",
+          company: "",
+          source: profileSource,
+          reason: failureReason,
+          bioAvailable: false,
+        };
+      }
+      const inference = UfxTemplates.inferCompanyFromBio(bio);
+      if (!inference) return { status: "none", company: "", source: profileSource, bioAvailable: true };
+      return {
+        status: "suggested",
+        company: inference.company,
+        confidence: inference.confidence,
+        source: inference.source,
+        profileSource,
+        bioAvailable: true,
+      };
+    })().catch(() => ({ status: "unavailable", company: "", source: "profile page", bioAvailable: false }));
+
+    companyLookupCache.set(handle, lookup);
+    const result = await lookup;
+    if (result.status === "unavailable") companyLookupCache.delete(handle);
+    return result;
   }
 
   // ---------- insertion (Draft.js composer) ----------
@@ -310,11 +480,12 @@
   }
 
   // Select a literal token inside the composer so the user's next keystrokes
-  // replace it (used for manual variables like [company]). Draft may re-render
-  // and restore its own selection right after an insert, so retry briefly.
-  async function selectPlaceholder(composer, token) {
+  // replace it. Suggested companies prefer the last match so a company that
+  // equals the recipient's first name cannot select the greeting by accident.
+  // Draft may re-render and restore its own selection, so retry briefly.
+  async function selectReviewToken(composer, token, preferLast = false) {
     if (isTextControl(composer)) {
-      const idx = composer.value.indexOf(token);
+      const idx = preferLast ? composer.value.lastIndexOf(token) : composer.value.indexOf(token);
       if (idx < 0) return false;
       composer.focus();
       composer.setSelectionRange(idx, idx + token.length);
@@ -324,12 +495,15 @@
 
     for (let attempt = 0; attempt < 5; attempt++) {
       const walker = document.createTreeWalker(composer, NodeFilter.SHOW_TEXT);
-      while (walker.nextNode()) {
-        const idx = walker.currentNode.data.indexOf(token);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      if (preferLast) nodes.reverse();
+      for (const node of nodes) {
+        const idx = preferLast ? node.data.lastIndexOf(token) : node.data.indexOf(token);
         if (idx < 0) continue;
         const range = document.createRange();
-        range.setStart(walker.currentNode, idx);
-        range.setEnd(walker.currentNode, idx + token.length);
+        range.setStart(node, idx);
+        range.setEnd(node, idx + token.length);
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
@@ -361,13 +535,48 @@
   // ---------- shortcut handling ----------
 
   async function runTemplate(template) {
-    const composer = activeComposer();
+    let composer = activeComposer();
     if (!composer) {
       toast("Open a DM conversation first", "error");
       return;
     }
 
-    const recipient = resolveRecipient(composer);
+    let recipient = resolveRecipient(composer);
+    let companyLookup = null;
+    if (templateUsesCompany(template.body) && recipient.handle) {
+      const initialPath = location.pathname;
+      const initialHandle = recipient.handle.toLowerCase();
+      toast(`Checking @${recipient.handle}'s bio for a company…`);
+      companyLookup = await lookupCompany(recipient, composer);
+      lastCompanyLookup = {
+        handle: recipient.handle,
+        status: companyLookup.status,
+        company: companyLookup.company,
+        source: companyLookup.source,
+        profileSource: companyLookup.profileSource || (
+          companyLookup.status === "suggested" ? "" : companyLookup.source
+        ),
+        reason: companyLookup.reason,
+        bioAvailable: companyLookup.bioAvailable,
+      };
+
+      // A profile request is asynchronous. Fail closed if the user changes
+      // conversations while it is in flight so we never mix two recipients.
+      const currentComposer = activeComposer();
+      const currentRecipient = currentComposer ? resolveRecipient(currentComposer) : null;
+      if (
+        location.pathname !== initialPath ||
+        !currentComposer ||
+        currentRecipient?.handle?.toLowerCase() !== initialHandle
+      ) {
+        toast("Conversation changed — nothing inserted", "error");
+        return;
+      }
+      composer = currentComposer;
+      recipient = currentRecipient;
+      if (companyLookup.company) recipient.company = companyLookup.company;
+    }
+
     const { text, missing, placeholders } = UfxTemplates.substitute(template.body, recipient);
     if (missing.length) {
       const why = recipient.reason ? ` (${recipient.reason})` : "";
@@ -378,9 +587,31 @@
     const inserted = await insertIntoComposer(composer, text);
     if (inserted) {
       const who = recipient.firstName || recipient.fullName || recipient.handle;
-      if (placeholders.length && (await selectPlaceholder(composer, placeholders[0]))) {
+      const suggestedCompany = companyLookup?.company || "";
+      const reviewToken = suggestedCompany || placeholders[0] || "";
+      const selectedForReview = reviewToken && (
+        await selectReviewToken(composer, reviewToken, !!suggestedCompany)
+      );
+      if (suggestedCompany && selectedForReview) {
+        toast(`Suggested “${suggestedCompany}” from @${recipient.handle}'s bio — review & send`);
+      } else if (placeholders.length && selectedForReview) {
         const what = placeholders[0].replace(/^\[|\]$/g, "");
-        toast(who ? `Ready for ${who} — type the ${what}, then send` : `Type the ${what}, then send`);
+        if (companyLookup?.status === "none") {
+          toast(`No clear company in @${recipient.handle}'s bio — type it, then send`);
+        } else if (companyLookup?.status === "unavailable") {
+          const reason = companyLookup.reason || "";
+          if (/http-429/.test(reason)) {
+            toast(`X rate-limited @${recipient.handle}'s profile — type the ${what}, then send`);
+          } else if (/timeout/.test(reason)) {
+            toast(`Profile lookup timed out for @${recipient.handle} — type the ${what}, then send`);
+          } else if (/http-(?:401|403)/.test(reason)) {
+            toast(`X blocked @${recipient.handle}'s profile lookup — type the ${what}, then send`);
+          } else {
+            toast(`Couldn't read @${recipient.handle}'s bio — type the ${what}, then send`);
+          }
+        } else {
+          toast(who ? `Ready for ${who} — type the ${what}, then send` : `Type the ${what}, then send`);
+        }
       } else {
         toast(who ? `“${template.name}” ready for ${who} — review & send` : `“${template.name}” inserted — review & send`);
       }
@@ -403,7 +634,14 @@
     if (!template) return;
     event.preventDefault();
     event.stopPropagation();
-    runTemplate(template);
+    if (templateRunInFlight) {
+      toast("Still preparing the previous template…");
+      return;
+    }
+    templateRunInFlight = true;
+    runTemplate(template)
+      .catch(() => toast("Couldn't insert the template", "error"))
+      .finally(() => { templateRunInFlight = false; });
   }
 
   // Console helper for diagnosing selector drift: __ufxDmDebug() in DevTools.
@@ -420,6 +658,7 @@
       pathname: location.pathname,
       urlSaysGroup: urlSaysGroup(),
       recipient: composer ? resolveRecipient(composer) : null,
+      companyLookup: lastCompanyLookup,
       templates: templates.map((t) => ({ name: t.name, shortcut: UfxTemplates.formatShortcut(t.shortcut) })),
     };
     console.table ? console.log(info) : console.log(JSON.stringify(info, null, 2));

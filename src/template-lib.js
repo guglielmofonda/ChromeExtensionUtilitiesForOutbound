@@ -4,13 +4,21 @@
 
 const UfxTemplates = (() => {
   // Order matters for the options-page chips.
-  // kind "auto" resolves from the conversation DOM; kind "manual" inserts a
-  // pre-selected placeholder the user types over (until we can auto-resolve it).
+  // kind "auto" resolves from the conversation DOM. "assisted" uses a
+  // high-confidence suggestion when available, otherwise inserts a selected
+  // placeholder the user types over.
   const VARIABLES = [
     { key: "first_name", label: "First name", sample: "Jane", kind: "auto" },
     { key: "full_name", label: "Full name", sample: "Jane Doe", kind: "auto" },
     { key: "handle", label: "Handle", sample: "janedoe", kind: "auto" },
-    { key: "company", label: "Company", sample: "Acme", kind: "manual", placeholder: "[company]" },
+    {
+      key: "company",
+      label: "Company",
+      sample: "Acme",
+      kind: "assisted",
+      placeholder: "[company]",
+      help: "Suggested from a clear bio signal; otherwise selected for you to type",
+    },
   ];
   const KNOWN_KEYS = new Set(VARIABLES.map((v) => v.key));
   const byKey = (key) => VARIABLES.find((v) => v.key === key);
@@ -43,6 +51,81 @@ const UfxTemplates = (() => {
     return first;
   }
 
+  const COMPANY_ROLE = "(?:co[- ]?founder|founder|chief executive|ceo|cto|cpo|coo|president|owner|creator|maker)";
+  const COMPANY_ACTION = "(?:building|working on|creating|making)";
+  const COMPANY_BREAK_RE = /\s+(?:while|previously|formerly|currently|based|investing|writing|helping)\b/i;
+  const GENERIC_COMPANY_RE = /^(?:stealth(?: startup)?|startup|company|project|product|software|tools?|apps?|agents?|community|the future|something new|my next thing)$/i;
+  const GENERIC_BUILDING_WORD_RE = /^(?:ai|consumer|developer|dev|enterprise|open source|social|software|hardware|tools?|products?|apps?|agents?|infrastructure|community|communities|companies|startups?)$/i;
+
+  function looksLikeCompanyWord(word) {
+    return (
+      /^[A-Z0-9][A-Za-z0-9+&.'’_-]*$/.test(word) ||
+      /^[a-z][A-Za-z0-9+&.'’_-]*[A-Z0-9][A-Za-z0-9+&.'’_-]*$/.test(word)
+    );
+  }
+
+  function cleanCompanyCandidate(raw, source) {
+    if (!raw) return "";
+    const candidate = raw
+      .replace(EMOJI_RE, " ")
+      .split(COMPANY_BREAK_RE)[0]
+      .replace(/\s+(?:and|but)\s+(?:building|working|investing|writing|helping)\b.*$/i, "")
+      .replace(/^[\s@'\"“”‘’([{]+|[\s'\"“”‘’\])}]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!candidate || candidate.length > 60 || /https?:\/\/|www\./i.test(candidate)) return "";
+    const words = candidate.split(/\s+/);
+    if (words.length > 6 || GENERIC_COMPANY_RE.test(candidate)) return "";
+
+    // A plain-text inference must look like a proper name. Handles are already
+    // explicit identifiers, so preserve their original casing and underscores.
+    if (source !== "bio-mention") {
+      const meaningful = words.filter((word) => !/^(?:the|of|and|&|for)$/i.test(word));
+      if (!meaningful.length || meaningful.some((word) => !looksLikeCompanyWord(word))) {
+        return "";
+      }
+    }
+
+    if (source === "bio-building" && GENERIC_BUILDING_WORD_RE.test(candidate)) return "";
+    return candidate;
+  }
+
+  // Returns one unambiguous company suggestion from explicit bio language such
+  // as "Founder @WorkOS", "CEO of Acme Labs", or "Building Modal". Generic
+  // claims like "building AI tools" deliberately return null.
+  function inferCompanyFromBio(rawBio) {
+    const bio = (rawBio || "").replace(/\s+/g, " ").trim();
+    if (!bio) return null;
+
+    const candidates = [];
+    const add = (raw, source, confidence) => {
+      const company = cleanCompanyCandidate(raw, source);
+      if (!company) return;
+      candidates.push({ company, source, confidence });
+    };
+
+    const roleMention = new RegExp(`\\b(?:${COMPANY_ROLE}|${COMPANY_ACTION})\\b[^@|•·;.!?]{0,48}?@([A-Za-z0-9_]{1,15})`, "gi");
+    for (const match of bio.matchAll(roleMention)) add(match[1], "bio-mention", "high");
+
+    const roleName = new RegExp(`\\b${COMPANY_ROLE}(?:\\s*(?:&|/)\\s*${COMPANY_ROLE})?\\s+(?:at|of)\\s+([^|•·;.!?]{2,60})`, "gi");
+    for (const match of bio.matchAll(roleName)) add(match[1], "bio-role", "high");
+
+    const buildingName = new RegExp(`\\b${COMPANY_ACTION}\\s+([^|•·;.!?]{2,60})`, "gi");
+    for (const match of bio.matchAll(buildingName)) add(match[1], "bio-building", "medium");
+
+    const unique = new Map();
+    for (const candidate of candidates) {
+      const key = candidate.company.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const existing = unique.get(key);
+      if (!existing || (existing.confidence === "medium" && candidate.confidence === "high")) {
+        unique.set(key, candidate);
+      }
+    }
+    if (unique.size !== 1) return null;
+    return [...unique.values()][0];
+  }
+
   // recipient: { fullName, firstName, handle, company? } (any field may be "").
   // Returns { text, missing, placeholders }:
   //   missing      — auto variables that could not be resolved, plus unknown
@@ -68,7 +151,7 @@ const UfxTemplates = (() => {
       }
       if (values[key]) return values[key];
       const variable = byKey(key);
-      if (variable.kind === "manual") {
+      if (variable.placeholder) {
         placeholders.push(variable.placeholder);
         return variable.placeholder;
       }
@@ -139,7 +222,7 @@ const UfxTemplates = (() => {
   const SAMPLE_RECIPIENT = { fullName: "Jane Doe", firstName: "Jane", handle: "janedoe" };
 
   return {
-    VARIABLES, cleanDisplayName, firstNameFrom, substitute,
+    VARIABLES, cleanDisplayName, firstNameFrom, inferCompanyFromBio, substitute,
     formatShortcut, eventMatchesShortcut, shortcutFromEvent,
     isReservedShortcut, SAMPLE_RECIPIENT, IS_MAC,
   };

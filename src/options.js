@@ -145,10 +145,12 @@ function renderPreview() {
     if (!variable) {
       span.className = "var-missing";
       span.textContent = match[0] + " ⟵ unknown variable";
-    } else if (variable.kind === "manual") {
+    } else if (variable.placeholder) {
       span.className = "var-manual";
       span.textContent = variable.placeholder;
-      span.title = "Inserted pre-selected — you type the real value over it";
+      span.title = variable.kind === "assisted"
+        ? "Suggested from the recipient's bio when clear; otherwise selected for typing"
+        : "Inserted pre-selected — you type the real value over it";
     } else {
       span.className = "var";
       span.textContent = variable.sample;
@@ -166,7 +168,7 @@ for (const v of UfxTemplates.VARIABLES) {
   chip.className = "chip";
   chip.type = "button";
   chip.textContent = `{{${v.key}}}`;
-  chip.title = `${v.label} — e.g. ${v.sample}`;
+  chip.title = v.help || `${v.label} — e.g. ${v.sample}`;
   chip.addEventListener("click", () => {
     const t = selected();
     if (!t) return;

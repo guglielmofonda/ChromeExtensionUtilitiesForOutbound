@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Utilities for X",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "A set of small quality-of-life utilities for x.com.",
   "permissions": ["storage"],
   "host_permissions": ["https://x.com/*"],
