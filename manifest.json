@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Utilities for X",
-  "version": "0.3.1",
-  "description": "A set of small quality-of-life utilities for x.com.",
+  "name": "DM Templates for X & LinkedIn",
+  "version": "0.4.0",
+  "description": "Human-reviewed DM templates for X and LinkedIn.",
   "permissions": ["storage"],
-  "host_permissions": ["https://x.com/*"],
+  "host_permissions": ["https://x.com/*", "https://www.linkedin.com/*"],
   "background": {
     "service_worker": "src/background.js"
   },
@@ -14,6 +14,17 @@
       "js": ["src/template-lib.js", "src/dm-templates.js", "src/content.js"],
       "css": ["src/content.css"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": [
+        "src/template-lib.js",
+        "src/linkedin-lib.js",
+        "src/linkedin-dm-templates.js",
+        "src/content.js"
+      ],
+      "css": ["src/content.css"],
+      "run_at": "document_idle"
     }
   ],
   "options_ui": {
@@ -21,6 +32,6 @@
     "open_in_tab": true
   },
   "action": {
-    "default_title": "Utilities for X — open template manager"
+    "default_title": "DM Templates for X & LinkedIn — open template manager"
   }
 }

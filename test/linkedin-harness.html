@@ -1,0 +1,141 @@
+<!doctype html>
+<!-- Integration harness for LinkedIn's full-page/overlay messaging contracts.
+     It uses the production content-script stack and never clicks Send. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>LinkedIn DM insertion harness</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="../src/content.css" />
+    <style>
+      body { margin: 0; background: #f4f2ee; color: #191919; font: 14px/1.5 -apple-system, system-ui, sans-serif; }
+      main { width: min(760px, calc(100% - 32px)); margin: 32px auto; }
+      .fixture { margin-bottom: 12px; padding: 10px 14px; border: 1px solid #d6cec2; border-radius: 8px; background: #fff; color: #666; }
+      .msg-conversations-container__convo-contents,
+      .msg-overlay-conversation-bubble { min-height: 520px; display: flex; flex-direction: column; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background: #fff; }
+      .msg-thread__topcard,
+      .msg-overlay-bubble-header { display: flex; align-items: center; gap: 12px; min-height: 68px; padding: 12px 16px; border-bottom: 1px solid #ddd; }
+      .msg-thread__link-to-profile { color: inherit; text-decoration: none; }
+      .msg-thread__participant-name { margin: 0; font-size: 17px; }
+      .msg-thread__participant-headline { color: #666; }
+      .messages { flex: 1; display: flex; align-items: flex-end; padding: 16px; color: #777; }
+      .msg-form { display: flex; align-items: flex-end; gap: 10px; padding: 12px; border-top: 1px solid #ddd; }
+      .msg-form__contenteditable { flex: 1; min-height: 58px; max-height: 180px; overflow: auto; padding: 10px 12px; border: 1px solid #888; border-radius: 6px; outline: none; white-space: pre-wrap; }
+      button { border: 0; border-radius: 999px; padding: 9px 18px; background: #0a66c2; color: #fff; font-weight: 700; }
+      #result { margin-top: 16px; padding: 12px; background: #fff; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="fixture" id="fixtureDescription"></div>
+      <section class="msg-conversations-container__convo-contents" data-view-name="message-thread">
+        <header class="msg-thread__topcard">
+          <a class="msg-thread__link-to-profile" id="primaryProfile" href="/in/jane-doe/">
+            <h2 class="msg-thread__participant-name">Jane Doe</h2>
+          </a>
+          <a class="msg-thread__link-to-profile" id="secondProfile" href="/in/john-smith/" hidden>
+            <span>John Smith</span>
+          </a>
+          <div class="msg-thread__participant-headline">Co-founder &amp; CEO at Acme Labs | Building useful software</div>
+        </header>
+        <div class="messages">Dedicated local test conversation</div>
+        <form class="msg-form">
+          <div
+            class="msg-form__contenteditable"
+            contenteditable="true"
+            role="textbox"
+            aria-label="Write a message…"
+            data-placeholder="Write a message…"
+          ></div>
+          <button id="sendButton" type="button">Send</button>
+        </form>
+      </section>
+      <pre id="result" hidden></pre>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      const fixtureCase = params.get("case") || "single";
+      const fixtureView = params.get("view") || "full";
+      const conversation = document.querySelector(".msg-conversations-container__convo-contents");
+      const header = document.querySelector(".msg-thread__topcard");
+      const title = document.querySelector(".msg-thread__participant-name");
+      const headline = document.querySelector(".msg-thread__participant-headline");
+      if (fixtureView === "overlay") {
+        conversation.className = "msg-overlay-conversation-bubble";
+        header.className = "msg-overlay-bubble-header";
+        title.className = "msg-overlay-bubble-header__title";
+        const primaryProfile = document.querySelector("#primaryProfile");
+        primaryProfile.before(title);
+        primaryProfile.remove();
+      }
+      if (fixtureCase === "group") {
+        title.textContent = "Jane Doe and 2 others";
+        document.querySelector("#secondProfile").hidden = false;
+      } else if (fixtureCase === "generic") {
+        headline.textContent = "Independent builder and investor";
+      }
+      document.querySelector("#fixtureDescription").textContent =
+        `Mock LinkedIn ${fixtureView} conversation: ${fixtureCase}`;
+
+      window.__sendClicks = 0;
+      window.__inputEvents = 0;
+      document.querySelector("#sendButton").addEventListener("click", () => { window.__sendClicks += 1; });
+      document.querySelector(".msg-form__contenteditable").addEventListener("input", () => {
+        window.__inputEvents += 1;
+      });
+      window.__harnessStore = {
+        enabled: {},
+        dmTemplates: {
+          version: 1,
+          templates: [{
+            id: "t1",
+            name: "Latest + company",
+            body: "hey {{first_name}}, what is the latest with {{company}}? are you a solo founder?",
+            shortcut: { code: "Digit1", alt: true, ctrl: false, meta: false, shift: false },
+          }],
+        },
+      };
+      window.chrome = {
+        storage: {
+          sync: { get: async (key) => ({ [key]: window.__harnessStore[key] }) },
+          onChanged: { addListener() {} },
+        },
+      };
+    </script>
+    <script src="../src/template-lib.js"></script>
+    <script src="../src/linkedin-lib.js"></script>
+    <script src="../src/linkedin-dm-templates.js"></script>
+    <script src="../src/content.js"></script>
+    <script>
+      if (params.get("auto") === "1") {
+        setTimeout(() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", {
+            bubbles: true,
+            cancelable: true,
+            code: "Digit1",
+            key: "1",
+            altKey: true,
+          }));
+        }, 50);
+        setTimeout(() => {
+          const composer = document.querySelector(".msg-form__contenteditable");
+          const result = {
+            case: fixtureCase,
+            view: fixtureView,
+            text: (composer.innerText || composer.textContent || "").replace(/\u200B/g, ""),
+            selected: window.getSelection().toString(),
+            sendClicks: window.__sendClicks,
+            inputEvents: window.__inputEvents,
+            toast: document.querySelector(".ufx-toast")?.textContent || "",
+            recipient: window.__ufxLinkedInDmDebug().recipient,
+          };
+          const output = document.querySelector("#result");
+          output.hidden = false;
+          output.textContent = JSON.stringify(result);
+          document.title = `LinkedIn harness complete: ${fixtureCase}`;
+        }, 800);
+      }
+    </script>
+  </body>
+</html>
