@@ -10,14 +10,14 @@ const UfxTemplates = (() => {
   const VARIABLES = [
     { key: "first_name", label: "First name", sample: "Jane", kind: "auto" },
     { key: "full_name", label: "Full name", sample: "Jane Doe", kind: "auto" },
-    { key: "handle", label: "Handle", sample: "janedoe", kind: "auto" },
+    { key: "handle", label: "Handle / profile ID", sample: "janedoe", kind: "auto" },
     {
       key: "company",
       label: "Company",
       sample: "Acme",
       kind: "assisted",
       placeholder: "[company]",
-      help: "Suggested from a clear bio signal; otherwise selected for you to type",
+      help: "Suggested from a clear visible profile signal; otherwise selected for you to type",
     },
   ];
   const KNOWN_KEYS = new Set(VARIABLES.map((v) => v.key));

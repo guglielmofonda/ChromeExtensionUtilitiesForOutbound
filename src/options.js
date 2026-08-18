@@ -115,7 +115,7 @@ function renderShortcutButton() {
   if (clash) {
     warn(`Also assigned to “${clash.name || "Untitled"}” — only the first match will fire.`);
   } else if (t.shortcut && UfxTemplates.isReservedShortcut(t.shortcut)) {
-    warn("The browser reserves this combo — it may never reach x.com. Pick another.");
+    warn("The browser reserves this combo — it may never reach the message page. Pick another.");
   } else {
     warn(null);
   }
@@ -149,7 +149,7 @@ function renderPreview() {
       span.className = "var-manual";
       span.textContent = variable.placeholder;
       span.title = variable.kind === "assisted"
-        ? "Suggested from the recipient's bio when clear; otherwise selected for typing"
+        ? "Suggested from a clear visible profile signal; otherwise selected for typing"
         : "Inserted pre-selected — you type the real value over it";
     } else {
       span.className = "var";

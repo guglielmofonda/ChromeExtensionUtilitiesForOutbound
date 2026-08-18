@@ -1,4 +1,4 @@
-// Content script — runs on x.com pages.
+// Content-script runner — loaded after the platform-specific utility modules.
 // Utility files (loaded before this one in the manifest) register themselves on
 // window.__ufxUtilities so each stays independently toggleable.
 
