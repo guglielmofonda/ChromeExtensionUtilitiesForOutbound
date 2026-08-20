@@ -52,8 +52,18 @@ const UfxTemplates = (() => {
   }
 
   const COMPANY_ROLE = "(?:co[- ]?founder|founder|chief executive|ceo|cto|cpo|coo|president|owner|creator|maker)";
-  const COMPANY_ACTION = "(?:building|working on|creating|making)";
-  const COMPANY_BREAK_RE = /\s+(?:while|previously|formerly|currently|based|investing|writing|helping)\b/i;
+  const COMPANY_ACTION = "(?:building|working on|creating|making|founding)";
+  const COMPANY_HISTORY = "(?:prev(?:iously)?|former(?:ly)?|ex|before|past)";
+  const COMPANY_BREAK_RE = new RegExp(
+    `\\s+(?:while|${COMPANY_HISTORY}|currently|based|investing|writing|helping)\\b`,
+    "i"
+  );
+  const COMPANY_HISTORY_RE = new RegExp(`\\b${COMPANY_HISTORY}\\b`, "i");
+  const COMPANY_HISTORY_PREFIX_RE = new RegExp(`\\b${COMPANY_HISTORY}[\\s-]*$`, "i");
+  const COMPANY_SECOND_ACTION_RE = new RegExp(
+    `\\s+(?:and|but)\\s+(?:${COMPANY_ACTION}|investing|writing|helping)\\b.*$`,
+    "i"
+  );
   const GENERIC_COMPANY_RE = /^(?:stealth(?: startup)?|startup|company|project|product|software|tools?|apps?|agents?|community|the future|something new|my next thing)$/i;
   const GENERIC_BUILDING_WORD_RE = /^(?:ai|consumer|developer|dev|enterprise|open source|social|software|hardware|tools?|products?|apps?|agents?|infrastructure|community|communities|companies|startups?)$/i;
 
@@ -69,8 +79,8 @@ const UfxTemplates = (() => {
     const candidate = raw
       .replace(EMOJI_RE, " ")
       .split(COMPANY_BREAK_RE)[0]
-      .replace(/\s+(?:and|but)\s+(?:building|working|investing|writing|helping)\b.*$/i, "")
-      .replace(/^[\s@'\"“”‘’([{]+|[\s'\"“”‘’\])}]+$/g, "")
+      .replace(COMPANY_SECOND_ACTION_RE, "")
+      .replace(/^[\s,@'\"“”‘’([{]+|[\s,'\"“”‘’\])}]+$/g, "")
       .replace(/\s+/g, " ")
       .trim();
 
@@ -105,8 +115,21 @@ const UfxTemplates = (() => {
       candidates.push({ company, source, confidence });
     };
 
-    const roleMention = new RegExp(`\\b(?:${COMPANY_ROLE}|${COMPANY_ACTION})\\b[^@|•·;.!?]{0,48}?@([A-Za-z0-9_]{1,15})`, "gi");
-    for (const match of bio.matchAll(roleMention)) add(match[1], "bio-mention", "high");
+    const hasHistoricalContext = (match) => {
+      const prefix = bio.slice(Math.max(0, match.index - 24), match.index);
+      return COMPANY_HISTORY_PREFIX_RE.test(prefix) || COMPANY_HISTORY_RE.test(match[0]);
+    };
+
+    // A current-work signal can introduce a handle on the following sentence
+    // or line ("Working on ... . @Acme"). Stop at the first handle, and reject
+    // the association if historical language occurs before it.
+    const roleMention = new RegExp(
+      `\\b(?:${COMPANY_ROLE}|${COMPANY_ACTION})\\b[^@|•·;!?]{0,48}?@([A-Za-z0-9_]{1,15})`,
+      "gi"
+    );
+    for (const match of bio.matchAll(roleMention)) {
+      if (!hasHistoricalContext(match)) add(match[1], "bio-mention", "high");
+    }
 
     const roleName = new RegExp(`\\b${COMPANY_ROLE}(?:\\s*(?:&|/)\\s*${COMPANY_ROLE})?\\s+(?:at|of)\\s+([^|•·;.!?]{2,60})`, "gi");
     for (const match of bio.matchAll(roleName)) add(match[1], "bio-role", "high");
