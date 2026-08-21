@@ -50,6 +50,9 @@ test("LinkedIn connection-note harness uses the isolated adapter and cannot auto
   );
   assert.match(harness, /Add a note to your invitation/);
   assert.match(harness, /src\/linkedin-dm-templates\.js/);
-  assert.match(harness, /maxlength="300"/);
+  assert.match(harness, /aria-modal="true"/);
+  assert.match(harness, /contenteditable="plaintext-only"/);
+  assert.match(harness, /data-placeholder="Ex: We know each other from\.\.\."/);
+  assert.match(harness, /focused-fallback/);
   assert.doesNotMatch(harness, /sendButton\.click\s*\(/);
 });

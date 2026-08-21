@@ -59,11 +59,29 @@ test("recognizes LinkedIn's connection invitation note surface", () => {
   );
   assert.equal(
     UfxLinkedIn.isConnectionNoteContext({
+      dialogText: "Ex: We know each other from...",
+    }),
+    true
+  );
+  assert.equal(
+    UfxLinkedIn.isConnectionNoteContext({
+      placeholder: "Add a note to your invitation",
+    }),
+    true
+  );
+  assert.equal(
+    UfxLinkedIn.isConnectionNoteContext({
       dialogText: "Create a post",
       placeholder: "What do you want to talk about?",
     }),
     false
   );
+});
+
+test("reads the connection-note limit from LinkedIn's counter", () => {
+  assert.equal(UfxLinkedIn.connectionNoteCharacterLimit("0/300"), 300);
+  assert.equal(UfxLinkedIn.connectionNoteCharacterLimit("Personal note 12 / 500"), 500);
+  assert.equal(UfxLinkedIn.connectionNoteCharacterLimit("No counter"), 300);
 });
 
 test("keeps connection notes within LinkedIn's character limit", () => {
