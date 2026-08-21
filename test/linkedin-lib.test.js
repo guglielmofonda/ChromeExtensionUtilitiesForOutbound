@@ -167,3 +167,31 @@ test("suggests one unambiguous company from visible LinkedIn headlines", () => {
   );
   assert.equal(UfxLinkedIn.companyFromHeadlines(["Builder and investor"]), null);
 });
+
+test("prefers LinkedIn's explicit current company over a generic profile headline", () => {
+  assert.deepEqual(
+    UfxLinkedIn.companyFromProfileSignals({
+      currentCompanyCandidates: [
+        "Current company: Sedona. Click to skip to experience card",
+        "Sedona",
+        "Sedona logo",
+      ],
+      headlines: ["freight & software"],
+    }),
+    { company: "Sedona", source: "profile-current-company", confidence: "high" }
+  );
+});
+
+test("keeps profile company resolution conservative", () => {
+  assert.equal(
+    UfxLinkedIn.companyFromProfileSignals({
+      currentCompanyCandidates: ["Acme", "Other Co"],
+      headlines: ["Founder at Acme"],
+    }),
+    null
+  );
+  assert.deepEqual(
+    UfxLinkedIn.companyFromProfileSignals({ headlines: ["Founder at Acme Labs"] }),
+    { company: "Acme Labs", source: "bio-role", confidence: "high" }
+  );
+});
