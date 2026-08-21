@@ -8,6 +8,8 @@ const UfxLinkedIn = ((Templates) => {
   const CONNECTION_NOTE_TITLE_RE = /\badd a note to your invitation\b/i;
   const CONNECTION_NOTE_PLACEHOLDER_RE = /\bwe know each other from\b/i;
   const CURRENT_COMPANY_HELP_RE = /\s*[.·|]?\s*click to skip to (?:the )?experience card\b.*$/i;
+  const LINKEDIN_NOTIFICATION_PREFIX_RE = /^\s*\(\s*\d+\+?\s*\)\s*/;
+  const NON_NAME_TOKEN_RE = /^(?:\(?\d+\+?\)?|(?:1st|2nd|3rd)(?:-degree)?(?: connection)?)$/i;
 
   function profileSlugFromHref(href, baseUrl = "https://www.linkedin.com/") {
     if (!href) return "";
@@ -42,7 +44,13 @@ const UfxLinkedIn = ((Templates) => {
         .replace(/\s+(?:active now|available on mobile|online)\s*$/i, "")
         .trim();
       const cleaned = Templates.cleanDisplayName(line);
-      if (!cleaned || cleaned.length > 100 || GENERIC_HEADER_RE.test(cleaned)) continue;
+      if (
+        !cleaned ||
+        cleaned.length > 100 ||
+        !/\p{L}/u.test(cleaned) ||
+        GENERIC_HEADER_RE.test(cleaned) ||
+        NON_NAME_TOKEN_RE.test(cleaned)
+      ) continue;
       return cleaned;
     }
     return "";
@@ -50,6 +58,7 @@ const UfxLinkedIn = ((Templates) => {
 
   function profileNameFromTitle(raw) {
     let title = String(raw || "")
+      .replace(LINKEDIN_NOTIFICATION_PREFIX_RE, "")
       .replace(/\s*\|\s*LinkedIn\b.*$/i, "")
       .trim();
     const detailSeparator = title.search(/\s[-–—]\s/);

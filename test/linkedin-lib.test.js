@@ -134,6 +134,33 @@ test("falls back to the open LinkedIn profile title for connection notes", () =>
   assert.equal(UfxLinkedIn.profileNameFromTitle("LinkedIn Login | LinkedIn"), "");
 });
 
+test("ignores LinkedIn unread counts and numeric UI badges when resolving a profile name", () => {
+  assert.equal(
+    UfxLinkedIn.profileNameFromTitle("(1) Harrison Engel | LinkedIn"),
+    "Harrison Engel"
+  );
+  assert.equal(
+    UfxLinkedIn.profileNameFromTitle("(12+) Shirley Jiang - Founder | LinkedIn"),
+    "Shirley Jiang"
+  );
+  assert.equal(UfxLinkedIn.cleanHeaderName("1"), "");
+  assert.equal(UfxLinkedIn.cleanHeaderName("3rd"), "");
+  assert.equal(UfxLinkedIn.cleanHeaderName("1\nHarrison Engel"), "Harrison Engel");
+  assert.deepEqual(
+    UfxLinkedIn.recipientFromProfile({
+      nameCandidates: ["1"],
+      profileHrefs: ["https://www.linkedin.com/in/harrison-engel-41018a55/"],
+      titleCandidates: ["(1) Harrison Engel | LinkedIn"],
+    }),
+    {
+      fullName: "Harrison Engel",
+      firstName: "Harrison",
+      handle: "harrison-engel-41018a55",
+      reason: "",
+    }
+  );
+});
+
 test("fails closed for group conversations", () => {
   assert.match(
     UfxLinkedIn.recipientFromHeader({

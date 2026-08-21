@@ -24,7 +24,8 @@ press Send yourself.
 
 Variables: `{{first_name}}`, `{{full_name}}`, `{{handle}}` resolve automatically from
 the conversation header or the already-open LinkedIn profile header. Names are cleaned
-programmatically: emoji stripped, `| Building X`-style suffixes cut, `JANE` → `Jane`.
+programmatically: emoji stripped, `| Building X`-style suffixes cut, `JANE` → `Jane`,
+and LinkedIn unread-count prefixes or numeric UI badges rejected.
 If one can't be resolved (group chat, no header found), nothing is inserted and a
 toast explains why.
 
