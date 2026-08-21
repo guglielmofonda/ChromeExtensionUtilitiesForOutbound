@@ -4,6 +4,10 @@ const fs = require("node:fs");
 
 const manifest = JSON.parse(fs.readFileSync(require.resolve("../manifest.json"), "utf8"));
 
+test("identifies the current unpacked extension build", () => {
+  assert.equal(manifest.version, "0.4.1");
+});
+
 test("keeps the existing X content-script stack unchanged", () => {
   const x = manifest.content_scripts.find((entry) => entry.matches.includes("https://x.com/*"));
   assert.deepEqual(x, {
@@ -41,6 +45,8 @@ test("LinkedIn adapter has no network, profile-tab, or send action", () => {
   assert.doesNotMatch(source, /\bfetch\s*\(/);
   assert.doesNotMatch(source, /chrome\.tabs|chrome\.runtime\.sendMessage/);
   assert.doesNotMatch(source, /\.click\s*\(|requestSubmit\s*\(|\.submit\s*\(/);
+  assert.match(source, /event\.composedPath/);
+  assert.match(source, /EDITABLE_COMPOSER_SELECTOR/);
 });
 
 test("LinkedIn connection-note harness uses the isolated adapter and cannot auto-send", () => {

@@ -31,6 +31,8 @@
   ];
   const CONNECTION_NOTE_SCOPE_SELECTOR =
     'dialog, [role="dialog"], [aria-modal="true"], .artdeco-modal';
+  const EDITABLE_COMPOSER_SELECTOR =
+    'textarea, input:not([type]), input[type="text"], [contenteditable]';
   const CONVERSATION_ROOT_SELECTORS = [
     ".msg-overlay-conversation-bubble",
     ".msg-conversations-container__convo-contents",
@@ -99,6 +101,7 @@
   function isEditableComposer(element) {
     if (!element?.matches) return false;
     if (element.matches('textarea, input:not([type]), input[type="text"]')) return true;
+    if (element.isContentEditable) return true;
     const contentEditable = element.getAttribute("contenteditable");
     return contentEditable === "" || contentEditable === "true" ||
       contentEditable === "plaintext-only";
@@ -134,6 +137,21 @@
     return !!connectionNoteDialog(element);
   }
 
+  function editableComposerFromNode(node) {
+    const element = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    if (!element?.matches) return null;
+    let editable = isEditableComposer(element)
+      ? element
+      : element.closest?.(EDITABLE_COMPOSER_SELECTOR);
+    if (!editable || !isEditableComposer(editable)) return null;
+
+    // Keyboard events can originate from a paragraph inside a contenteditable
+    // host. Return the outer editing host so insertion and selection operate on
+    // the element that owns the editor state.
+    while (editable.parentElement?.isContentEditable) editable = editable.parentElement;
+    return editable;
+  }
+
   function isMessagingComposer(el) {
     if (el.classList.contains("msg-form__contenteditable")) return true;
     if (el.closest("form.msg-form")) return true;
@@ -148,19 +166,27 @@
     return false;
   }
 
-  function composerCandidates() {
+  function composerCandidates(triggerPath = []) {
     const candidates = new Set();
     for (const selector of [...COMPOSER_SELECTORS, ...CONNECTION_NOTE_COMPOSER_SELECTORS]) {
       for (const el of document.querySelectorAll(selector)) candidates.add(el);
     }
-    if (isEditableComposer(document.activeElement)) candidates.add(document.activeElement);
+    // LinkedIn changes editor attributes often. Scan editable controls, then
+    // retain only recognized messaging or invitation-note contexts below.
+    for (const element of document.querySelectorAll(EDITABLE_COMPOSER_SELECTOR)) {
+      candidates.add(element);
+    }
+    for (const node of [document.activeElement, ...triggerPath]) {
+      const editable = editableComposerFromNode(node);
+      if (editable) candidates.add(editable);
+    }
     return [...candidates]
       .filter(isVisible)
       .filter((element) => isMessagingComposer(element) || isConnectionNoteComposer(element));
   }
 
-  function activeComposer() {
-    const visible = composerCandidates();
+  function activeComposer(triggerPath = []) {
+    const visible = composerCandidates(triggerPath);
     const focused = visible.find(
       (candidate) => candidate === document.activeElement || candidate.contains(document.activeElement)
     );
@@ -446,10 +472,10 @@
     }, 2600);
   }
 
-  async function runTemplate(template) {
-    const composer = activeComposer();
+  async function runTemplate(template, triggerPath = []) {
+    const composer = activeComposer(triggerPath);
     if (!composer) {
-      toast("Open a LinkedIn conversation or connection note first", "error");
+      toast("Click inside a LinkedIn conversation or connection note first", "error");
       return;
     }
 
@@ -513,8 +539,11 @@
       toast("Still preparing the previous template…");
       return;
     }
+    const triggerPath = typeof event.composedPath === "function"
+      ? event.composedPath()
+      : [event.target];
     templateRunInFlight = true;
-    runTemplate(template)
+    runTemplate(template, triggerPath)
       .catch(() => toast("Couldn't insert the template", "error"))
       .finally(() => { templateRunInFlight = false; });
   }
