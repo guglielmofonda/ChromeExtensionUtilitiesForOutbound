@@ -47,6 +47,16 @@ const UfxLinkedIn = ((Templates) => {
     return "";
   }
 
+  function profileNameFromTitle(raw) {
+    let title = String(raw || "")
+      .replace(/\s*\|\s*LinkedIn\b.*$/i, "")
+      .trim();
+    const detailSeparator = title.search(/\s[-–—]\s/);
+    if (detailSeparator > 0) title = title.slice(0, detailSeparator).trim();
+    if (!title || /^(?:LinkedIn|Sign in|Log in)\b/i.test(title)) return "";
+    return cleanHeaderName(title);
+  }
+
   function isGroupLabel(value) {
     return GROUP_LABEL_RE.test(value || "");
   }
@@ -107,11 +117,19 @@ const UfxLinkedIn = ((Templates) => {
     };
   }
 
-  function recipientFromProfile({ nameCandidates = [], profileHrefs = [] } = {}) {
+  function recipientFromProfile({
+    nameCandidates = [],
+    profileHrefs = [],
+    titleCandidates = [],
+  } = {}) {
+    const visibleNames = nameCandidates.map(cleanHeaderName).filter(Boolean);
+    const fallbackNames = visibleNames.length
+      ? []
+      : titleCandidates.map(profileNameFromTitle).filter(Boolean);
     const recipient = recipientFromHeader({
-      nameCandidates,
+      nameCandidates: visibleNames.length ? visibleNames : fallbackNames,
       profileHrefs,
-      headerText: nameCandidates.join("\n"),
+      headerText: (visibleNames.length ? visibleNames : fallbackNames).join("\n"),
     });
     if (recipient.reason === "no conversation header found") {
       return { ...recipient, reason: "no profile header found" };
@@ -143,6 +161,7 @@ const UfxLinkedIn = ((Templates) => {
     exceedsCharacterLimit,
     isConnectionNoteContext,
     isGroupLabel,
+    profileNameFromTitle,
     profileSlugFromHref,
     recipientFromHeader,
     recipientFromProfile,
