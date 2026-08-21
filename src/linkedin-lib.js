@@ -7,6 +7,7 @@ const UfxLinkedIn = ((Templates) => {
   const GROUP_LABEL_RE = /(?:\band\s+\d+\s+others?\b|\b\d+\s+(?:members?|participants?)\b|\bgroup conversation\b)/i;
   const CONNECTION_NOTE_TITLE_RE = /\badd a note to your invitation\b/i;
   const CONNECTION_NOTE_PLACEHOLDER_RE = /\bwe know each other from\b/i;
+  const CURRENT_COMPANY_HELP_RE = /\s*[.·|]?\s*click to skip to (?:the )?experience card\b.*$/i;
 
   function profileSlugFromHref(href, baseUrl = "https://www.linkedin.com/") {
     if (!href) return "";
@@ -154,9 +155,49 @@ const UfxLinkedIn = ((Templates) => {
     return unique.size === 1 ? [...unique.values()][0] : null;
   }
 
+  function cleanProfileCompany(raw) {
+    const lines = String(raw || "").split(/\n+/);
+    for (let line of lines) {
+      line = line
+        .replace(/^current company\s*:\s*/i, "")
+        .replace(CURRENT_COMPANY_HELP_RE, "")
+        .replace(/\s+logo\s*$/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (
+        !line ||
+        line.length > 100 ||
+        /^(?:company|current company|experience)$/i.test(line) ||
+        /https?:\/\/|www\./i.test(line)
+      ) continue;
+      return line;
+    }
+    return "";
+  }
+
+  function companyFromProfileSignals({ currentCompanyCandidates = [], headlines = [] } = {}) {
+    const companies = [...new Map(
+      currentCompanyCandidates
+        .map(cleanProfileCompany)
+        .filter(Boolean)
+        .map((company) => [company.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, ""), company])
+    ).values()];
+    if (companies.length === 1) {
+      return {
+        company: companies[0],
+        source: "profile-current-company",
+        confidence: "high",
+      };
+    }
+    if (companies.length > 1) return null;
+    return companyFromHeadlines(headlines);
+  }
+
   return {
     cleanHeaderName,
+    cleanProfileCompany,
     companyFromHeadlines,
+    companyFromProfileSignals,
     connectionNoteCharacterLimit,
     exceedsCharacterLimit,
     isConnectionNoteContext,

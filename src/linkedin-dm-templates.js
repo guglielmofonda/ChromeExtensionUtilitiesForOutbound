@@ -79,6 +79,10 @@
     ".pv-top-card .text-body-medium.break-words",
     '.pv-top-card [data-anonymize="headline"]',
   ];
+  const PROFILE_CURRENT_COMPANY_SELECTORS = [
+    '[aria-label^="Current company:" i]',
+    'a[href*="/company/"]',
+  ];
 
   let templates = [];
   let templateRunInFlight = false;
@@ -244,6 +248,23 @@
     return values;
   }
 
+  function profileCurrentCompanyCandidates(scope) {
+    const elements = new Set();
+    for (const selector of PROFILE_CURRENT_COMPANY_SELECTORS) {
+      addIfMatches(elements, scope, selector);
+    }
+    const values = [];
+    for (const element of elements) {
+      if (!isVisible(element)) continue;
+      values.push(
+        element.getAttribute("aria-label") || "",
+        element.innerText || element.textContent || "",
+        element.querySelector("img[alt]")?.getAttribute("alt") || ""
+      );
+    }
+    return values.filter(Boolean);
+  }
+
   function profileHrefs(block) {
     const hrefs = [];
     if (block.matches?.('a[href*="/in/"]') && isVisible(block)) {
@@ -317,8 +338,17 @@
         headlines.push(...textCandidates(block, selectors));
       }
     }
-    const suggestion = UfxLinkedIn.companyFromHeadlines(headlines);
-    const visibleSource = isConnectionNote ? "visible LinkedIn profile headline" : "visible LinkedIn headline";
+    const suggestion = isConnectionNote
+      ? UfxLinkedIn.companyFromProfileSignals({
+        currentCompanyCandidates: profileCurrentCompanyCandidates(scope),
+        headlines,
+      })
+      : UfxLinkedIn.companyFromHeadlines(headlines);
+    const visibleSource = suggestion?.source === "profile-current-company"
+      ? "visible LinkedIn current company"
+      : isConnectionNote
+        ? "visible LinkedIn profile headline"
+        : "visible LinkedIn headline";
     return {
       status: suggestion ? "suggested" : "none",
       company: suggestion?.company ?? "",
@@ -531,7 +561,7 @@
       await selectReviewToken(composer, reviewToken, !!suggestedCompany)
     );
     if (suggestedCompany && selectedForReview) {
-      toast(`Suggested “${suggestedCompany}” from ${recipient.firstName || "the recipient"}'s visible headline — review & send`);
+      toast(`Suggested “${suggestedCompany}” from ${recipient.firstName || "the recipient"}'s ${companyLookup.source} — review & send`);
     } else if (placeholders.length && selectedForReview) {
       const what = placeholders[0].replace(/^\[|\]$/g, "");
       toast(`No clear company visible for ${who || "this recipient"} — type the ${what}, then send`);
