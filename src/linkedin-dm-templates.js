@@ -64,7 +64,12 @@
   ];
   const PROFILE_NAME_SELECTORS = [
     '[data-view-name="profile-card"] [data-anonymize="person-name"]',
+    '[data-view-name="profile-card"] .text-heading-xlarge',
+    '[data-view-name="profile-card"] [role="heading"][aria-level="1"]',
     ".pv-text-details__left-panel h1",
+    ".pv-text-details__left-panel .text-heading-xlarge",
+    ".pv-top-card .text-heading-xlarge",
+    '.pv-top-card [role="heading"][aria-level="1"]',
     "h1.text-heading-xlarge",
     "h1",
   ];
@@ -252,7 +257,11 @@
   }
 
   function profilePageScope() {
-    return document.querySelector("main") ?? document;
+    const profileCard = document.querySelector(".pv-top-card") ??
+      document.querySelector(".pv-text-details__left-panel") ??
+      document.querySelector('main [data-view-name="profile-card"]') ??
+      document.querySelector('[data-view-name="profile-card"]');
+    return profileCard ?? document.querySelector("main") ?? document;
   }
 
   function currentProfileHrefs() {
@@ -267,6 +276,11 @@
     return UfxLinkedIn.recipientFromProfile({
       nameCandidates: textCandidates(scope, PROFILE_NAME_SELECTORS),
       profileHrefs: currentProfileHrefs(),
+      titleCandidates: [
+        document.querySelector('meta[property="og:title"]')?.getAttribute("content"),
+        document.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
+        document.title,
+      ].filter(Boolean),
     });
   }
 

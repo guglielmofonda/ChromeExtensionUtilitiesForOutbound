@@ -118,6 +118,22 @@ test("resolves a connection-note recipient from the open member profile", () => 
   );
 });
 
+test("falls back to the open LinkedIn profile title for connection notes", () => {
+  assert.deepEqual(
+    UfxLinkedIn.recipientFromProfile({
+      profileHrefs: ["https://www.linkedin.com/in/jesse-tabak/"],
+      titleCandidates: ["Jesse Tabak - freight & software | LinkedIn"],
+    }),
+    {
+      fullName: "Jesse Tabak",
+      firstName: "Jesse",
+      handle: "jesse-tabak",
+      reason: "",
+    }
+  );
+  assert.equal(UfxLinkedIn.profileNameFromTitle("LinkedIn Login | LinkedIn"), "");
+});
+
 test("fails closed for group conversations", () => {
   assert.match(
     UfxLinkedIn.recipientFromHeader({

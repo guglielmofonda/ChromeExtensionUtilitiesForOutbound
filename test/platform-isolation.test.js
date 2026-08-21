@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const manifest = JSON.parse(fs.readFileSync(require.resolve("../manifest.json"), "utf8"));
 
 test("identifies the current unpacked extension build", () => {
-  assert.equal(manifest.version, "0.4.1");
+  assert.equal(manifest.version, "0.4.2");
 });
 
 test("keeps the existing X content-script stack unchanged", () => {
