@@ -15,10 +15,11 @@
       h1 { margin: 0; font-size: 30px; }
       .text-body-medium { margin-top: 4px; color: #555; font-size: 17px; }
       .backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 55%); }
-      .artdeco-modal { position: fixed; z-index: 1; top: 84px; left: 50%; width: min(640px, calc(100% - 32px)); transform: translateX(-50%); border-radius: 10px; background: #fff; box-shadow: 0 4px 18px rgb(0 0 0 / 28%); }
-      .artdeco-modal h2 { margin: 0; padding: 20px 28px; border-bottom: 1px solid #ddd; font-size: 24px; }
+      .connection-note-modal { position: fixed; z-index: 1; top: 84px; left: 50%; width: min(640px, calc(100% - 32px)); transform: translateX(-50%); border-radius: 10px; background: #fff; box-shadow: 0 4px 18px rgb(0 0 0 / 28%); }
+      .connection-note-modal h2 { margin: 0; padding: 20px 28px; border-bottom: 1px solid #ddd; font-size: 24px; }
       .modal-body { padding: 28px; }
-      textarea { box-sizing: border-box; width: 100%; min-height: 104px; padding: 10px; border: 2px solid #0a66c2; border-radius: 5px; font: inherit; resize: vertical; }
+      [contenteditable] { box-sizing: border-box; width: 100%; min-height: 104px; padding: 10px; border: 2px solid #0a66c2; border-radius: 5px; font: inherit; }
+      [contenteditable]:empty::before { color: #777; content: attr(data-placeholder); }
       .counter { text-align: right; color: #666; }
       .actions { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 28px; border-top: 1px solid #ddd; }
       button { border: 0; border-radius: 999px; padding: 9px 20px; background: #0a66c2; color: #fff; font-weight: 700; }
@@ -36,17 +37,18 @@
       </section>
     </main>
     <div class="backdrop"></div>
-    <section class="artdeco-modal" role="dialog" aria-labelledby="connection-note-title">
+    <section class="connection-note-modal" aria-modal="true" aria-labelledby="connection-note-title">
       <h2 id="connection-note-title">Add a note to your invitation</h2>
       <div class="modal-body">
         <p>LinkedIn members are more likely to accept invitations that include a personal note.</p>
-        <textarea
+        <div
           id="custom-message"
-          name="message"
-          maxlength="300"
+          role="textbox"
+          contenteditable="plaintext-only"
+          aria-multiline="true"
           aria-label="Add a note to your invitation"
-          placeholder="Ex: We know each other from..."
-        ></textarea>
+          data-placeholder="Ex: We know each other from..."
+        ></div>
         <div class="counter"><span id="count">0</span>/300</div>
       </div>
       <div class="actions">
@@ -61,6 +63,13 @@
       const fixtureCase = params.get("case") || "single";
       const composer = document.querySelector("#custom-message");
       const sendButton = document.querySelector("#sendButton");
+      if (fixtureCase === "focused-fallback") {
+        document.querySelector(".connection-note-modal").removeAttribute("aria-modal");
+        composer.removeAttribute("role");
+        composer.removeAttribute("aria-label");
+        composer.removeAttribute("data-placeholder");
+      }
+      const composerText = () => (composer.innerText || composer.textContent || "").replace(/\u200B/g, "");
       const templateBody = fixtureCase === "limit"
         ? "x".repeat(301)
         : "hey {{first_name}}, what is the latest with {{company}}? are you a solo founder?";
@@ -70,8 +79,9 @@
       sendButton.addEventListener("click", () => { window.__sendClicks += 1; });
       composer.addEventListener("input", () => {
         window.__inputEvents += 1;
-        document.querySelector("#count").textContent = composer.value.length;
-        sendButton.disabled = composer.value.length === 0 || composer.value.length > composer.maxLength;
+        const length = composerText().length;
+        document.querySelector("#count").textContent = length;
+        sendButton.disabled = length === 0 || length > 300;
       });
       window.__harnessStore = {
         enabled: {},
@@ -112,8 +122,8 @@
           const debug = window.__ufxLinkedInDmDebug();
           const result = {
             case: fixtureCase,
-            text: composer.value,
-            selected: composer.value.slice(composer.selectionStart, composer.selectionEnd),
+            text: composerText(),
+            selected: window.getSelection()?.toString() || "",
             sendDisabled: sendButton.disabled,
             sendClicks: window.__sendClicks,
             inputEvents: window.__inputEvents,

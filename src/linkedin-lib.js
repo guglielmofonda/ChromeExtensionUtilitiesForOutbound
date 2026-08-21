@@ -53,7 +53,15 @@ const UfxLinkedIn = ((Templates) => {
 
   function isConnectionNoteContext({ dialogText = "", placeholder = "" } = {}) {
     return CONNECTION_NOTE_TITLE_RE.test(dialogText) ||
+      CONNECTION_NOTE_PLACEHOLDER_RE.test(dialogText) ||
+      CONNECTION_NOTE_TITLE_RE.test(placeholder) ||
       CONNECTION_NOTE_PLACEHOLDER_RE.test(placeholder);
+  }
+
+  function connectionNoteCharacterLimit(counterText = "", fallback = 300) {
+    const match = String(counterText).match(/\b\d+\s*\/\s*(\d{1,4})\b/);
+    const parsed = Number(match?.[1]);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
   }
 
   function exceedsCharacterLimit({ currentText = "", insertedText = "", maxLength = -1 } = {}) {
@@ -131,6 +139,7 @@ const UfxLinkedIn = ((Templates) => {
   return {
     cleanHeaderName,
     companyFromHeadlines,
+    connectionNoteCharacterLimit,
     exceedsCharacterLimit,
     isConnectionNoteContext,
     isGroupLabel,

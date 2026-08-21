@@ -11,11 +11,26 @@
   ];
   const CONNECTION_NOTE_COMPOSER_SELECTORS = [
     'textarea#custom-message',
+    'dialog textarea',
+    '[role="dialog"] textarea',
+    '[aria-modal="true"] textarea',
     '[role="dialog"] textarea[name="message"]',
     '.artdeco-modal textarea[name="message"]',
-    '[role="dialog"] textarea[placeholder*="know each other" i]',
-    '.artdeco-modal textarea[placeholder*="know each other" i]',
+    '.artdeco-modal textarea',
+    'textarea[placeholder*="know each other" i]',
+    'textarea[aria-label*="note" i]',
+    'dialog [contenteditable]',
+    '[role="dialog"] [contenteditable]',
+    '[aria-modal="true"] [contenteditable]',
+    '[role="dialog"] [contenteditable][role="textbox"]',
+    '[aria-modal="true"] [contenteditable][role="textbox"]',
+    '.artdeco-modal [contenteditable][role="textbox"]',
+    '[contenteditable][data-placeholder*="know each other" i]',
+    '[contenteditable][aria-placeholder*="know each other" i]',
+    '[contenteditable][aria-label*="note" i]',
   ];
+  const CONNECTION_NOTE_SCOPE_SELECTOR =
+    'dialog, [role="dialog"], [aria-modal="true"], .artdeco-modal';
   const CONVERSATION_ROOT_SELECTORS = [
     ".msg-overlay-conversation-bubble",
     ".msg-conversations-container__convo-contents",
@@ -81,16 +96,38 @@
       el.getAttribute("aria-disabled") !== "true";
   }
 
+  function isEditableComposer(element) {
+    if (!element?.matches) return false;
+    if (element.matches('textarea, input:not([type]), input[type="text"]')) return true;
+    const contentEditable = element.getAttribute("contenteditable");
+    return contentEditable === "" || contentEditable === "true" ||
+      contentEditable === "plaintext-only";
+  }
+
   function connectionNoteDialog(element) {
-    if (!element?.matches?.("textarea")) return null;
-    const dialog = element.closest('[role="dialog"], .artdeco-modal');
-    if (!dialog) return null;
+    if (!isEditableComposer(element)) return null;
+    const dialog = element.closest(CONNECTION_NOTE_SCOPE_SELECTOR);
     const placeholder = element.getAttribute("placeholder") ||
+      element.getAttribute("data-placeholder") ||
+      element.getAttribute("aria-placeholder") ||
       element.getAttribute("aria-label") || "";
-    const dialogText = dialog.innerText || dialog.textContent || "";
-    return UfxLinkedIn.isConnectionNoteContext({ dialogText, placeholder })
-      ? dialog
-      : null;
+    const dialogText = dialog?.innerText || dialog?.textContent || "";
+    if (UfxLinkedIn.isConnectionNoteContext({ dialogText, placeholder })) {
+      return dialog ?? element.closest("form, section") ?? element.parentElement;
+    }
+
+    // Some LinkedIn variants omit stable modal semantics. The field is already
+    // focused when a shortcut is pressed, so inspect only its nearby ancestors
+    // for the exact connection-note heading instead of scanning the whole page.
+    let ancestor = element.parentElement;
+    for (let depth = 0; ancestor && ancestor !== document.body && depth < 16; depth++) {
+      const ancestorText = ancestor.innerText || ancestor.textContent || "";
+      if (UfxLinkedIn.isConnectionNoteContext({ dialogText: ancestorText })) {
+        return ancestor;
+      }
+      ancestor = ancestor.parentElement;
+    }
+    return null;
   }
 
   function isConnectionNoteComposer(element) {
@@ -116,6 +153,7 @@
     for (const selector of [...COMPOSER_SELECTORS, ...CONNECTION_NOTE_COMPOSER_SELECTORS]) {
       for (const el of document.querySelectorAll(selector)) candidates.add(el);
     }
+    if (isEditableComposer(document.activeElement)) candidates.add(document.activeElement);
     return [...candidates]
       .filter(isVisible)
       .filter((element) => isMessagingComposer(element) || isConnectionNoteComposer(element));
@@ -270,12 +308,21 @@
   }
 
   function exceededCharacterLimit(composer, text) {
-    if (!isTextControl(composer) || composer.maxLength <= 0) return 0;
+    const nativeLimit = Number(composer.maxLength);
+    const noteDialog = connectionNoteDialog(composer);
+    const limit = Number.isInteger(nativeLimit) && nativeLimit > 0
+      ? nativeLimit
+      : noteDialog
+        ? UfxLinkedIn.connectionNoteCharacterLimit(
+          noteDialog.innerText || noteDialog.textContent || ""
+        )
+        : 0;
+    if (!limit) return 0;
     return UfxLinkedIn.exceedsCharacterLimit({
       currentText: composerText(composer),
       insertedText: text,
-      maxLength: composer.maxLength,
-    }) ? composer.maxLength : 0;
+      maxLength: limit,
+    }) ? limit : 0;
   }
 
   async function composerChanged(composer, before, timeoutMs = 300) {
