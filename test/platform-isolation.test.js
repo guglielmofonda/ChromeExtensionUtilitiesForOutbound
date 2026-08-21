@@ -42,3 +42,14 @@ test("LinkedIn adapter has no network, profile-tab, or send action", () => {
   assert.doesNotMatch(source, /chrome\.tabs|chrome\.runtime\.sendMessage/);
   assert.doesNotMatch(source, /\.click\s*\(|requestSubmit\s*\(|\.submit\s*\(/);
 });
+
+test("LinkedIn connection-note harness uses the isolated adapter and cannot auto-send", () => {
+  const harness = fs.readFileSync(
+    require.resolve("./linkedin-connection-harness.html"),
+    "utf8"
+  );
+  assert.match(harness, /Add a note to your invitation/);
+  assert.match(harness, /src\/linkedin-dm-templates\.js/);
+  assert.match(harness, /maxlength="300"/);
+  assert.doesNotMatch(harness, /sendButton\.click\s*\(/);
+});

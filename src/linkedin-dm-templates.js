@@ -1,6 +1,6 @@
-// LinkedIn DM templates utility.
-// A configured shortcut fills only the currently open LinkedIn message composer.
-// It never opens recipients, iterates conversations, or sends a message.
+// LinkedIn message templates utility.
+// A configured shortcut fills only the currently open message composer or
+// connection-invitation note. It never opens recipients, iterates, or sends.
 
 (() => {
   const COMPOSER_SELECTORS = [
@@ -8,6 +8,13 @@
     'form.msg-form [contenteditable="true"][role="textbox"]',
     '[contenteditable="true"][role="textbox"][aria-label*="message" i]',
     '[contenteditable="true"][role="textbox"][data-placeholder*="message" i]',
+  ];
+  const CONNECTION_NOTE_COMPOSER_SELECTORS = [
+    'textarea#custom-message',
+    '[role="dialog"] textarea[name="message"]',
+    '.artdeco-modal textarea[name="message"]',
+    '[role="dialog"] textarea[placeholder*="know each other" i]',
+    '.artdeco-modal textarea[placeholder*="know each other" i]',
   ];
   const CONVERSATION_ROOT_SELECTORS = [
     ".msg-overlay-conversation-bubble",
@@ -38,6 +45,18 @@
     ".msg-entity-lockup__entity-subtitle",
     ".artdeco-entity-lockup__subtitle",
   ];
+  const PROFILE_NAME_SELECTORS = [
+    '[data-view-name="profile-card"] [data-anonymize="person-name"]',
+    ".pv-text-details__left-panel h1",
+    "h1.text-heading-xlarge",
+    "h1",
+  ];
+  const PROFILE_HEADLINE_SELECTORS = [
+    '[data-view-name="profile-card"] [data-anonymize="headline"]',
+    ".pv-text-details__left-panel .text-body-medium.break-words",
+    ".pv-top-card .text-body-medium.break-words",
+    '.pv-top-card [data-anonymize="headline"]',
+  ];
 
   let templates = [];
   let templateRunInFlight = false;
@@ -62,6 +81,22 @@
       el.getAttribute("aria-disabled") !== "true";
   }
 
+  function connectionNoteDialog(element) {
+    if (!element?.matches?.("textarea")) return null;
+    const dialog = element.closest('[role="dialog"], .artdeco-modal');
+    if (!dialog) return null;
+    const placeholder = element.getAttribute("placeholder") ||
+      element.getAttribute("aria-label") || "";
+    const dialogText = dialog.innerText || dialog.textContent || "";
+    return UfxLinkedIn.isConnectionNoteContext({ dialogText, placeholder })
+      ? dialog
+      : null;
+  }
+
+  function isConnectionNoteComposer(element) {
+    return !!connectionNoteDialog(element);
+  }
+
   function isMessagingComposer(el) {
     if (el.classList.contains("msg-form__contenteditable")) return true;
     if (el.closest("form.msg-form")) return true;
@@ -78,10 +113,12 @@
 
   function composerCandidates() {
     const candidates = new Set();
-    for (const selector of COMPOSER_SELECTORS) {
+    for (const selector of [...COMPOSER_SELECTORS, ...CONNECTION_NOTE_COMPOSER_SELECTORS]) {
       for (const el of document.querySelectorAll(selector)) candidates.add(el);
     }
-    return [...candidates].filter(isVisible).filter(isMessagingComposer);
+    return [...candidates]
+      .filter(isVisible)
+      .filter((element) => isMessagingComposer(element) || isConnectionNoteComposer(element));
   }
 
   function activeComposer() {
@@ -89,12 +126,16 @@
     const focused = visible.find(
       (candidate) => candidate === document.activeElement || candidate.contains(document.activeElement)
     );
-    // Overlay conversations are appended after the main page, so the last visible
-    // composer is the best fallback when none currently has focus.
-    return focused ?? visible[visible.length - 1] ?? null;
+    // A connection modal is the active task even if focus briefly moves to its
+    // buttons. Otherwise overlays are appended last and remain the best fallback.
+    const connectionNote = visible.findLast?.(isConnectionNoteComposer) ??
+      [...visible].reverse().find(isConnectionNoteComposer);
+    return connectionNote ?? focused ?? visible[visible.length - 1] ?? null;
   }
 
   function conversationScope(composer) {
+    const noteDialog = connectionNoteDialog(composer);
+    if (noteDialog) return noteDialog;
     for (const selector of CONVERSATION_ROOT_SELECTORS) {
       const root = composer.closest(selector);
       if (root) return root;
@@ -146,7 +187,27 @@
     return hrefs.filter(Boolean);
   }
 
+  function profilePageScope() {
+    return document.querySelector("main") ?? document;
+  }
+
+  function currentProfileHrefs() {
+    return [
+      document.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+      location.href,
+    ].filter(Boolean);
+  }
+
+  function resolveProfileRecipient() {
+    const scope = profilePageScope();
+    return UfxLinkedIn.recipientFromProfile({
+      nameCandidates: textCandidates(scope, PROFILE_NAME_SELECTORS),
+      profileHrefs: currentProfileHrefs(),
+    });
+  }
+
   function resolveRecipient(composer) {
+    if (isConnectionNoteComposer(composer)) return resolveProfileRecipient();
     const scope = conversationScope(composer);
     for (const block of headerBlocks(scope)) {
       const recipient = UfxLinkedIn.recipientFromHeader({
@@ -167,17 +228,24 @@
   }
 
   function visibleCompanySuggestion(composer) {
-    const scope = conversationScope(composer);
+    const isConnectionNote = isConnectionNoteComposer(composer);
+    const scope = isConnectionNote ? profilePageScope() : conversationScope(composer);
+    const selectors = isConnectionNote ? PROFILE_HEADLINE_SELECTORS : HEADLINE_SELECTORS;
     const headlines = [];
-    for (const block of headerBlocks(scope)) {
-      headlines.push(...textCandidates(block, HEADLINE_SELECTORS));
+    if (isConnectionNote) {
+      headlines.push(...textCandidates(scope, selectors));
+    } else {
+      for (const block of headerBlocks(scope)) {
+        headlines.push(...textCandidates(block, selectors));
+      }
     }
     const suggestion = UfxLinkedIn.companyFromHeadlines(headlines);
+    const visibleSource = isConnectionNote ? "visible LinkedIn profile headline" : "visible LinkedIn headline";
     return {
       status: suggestion ? "suggested" : "none",
       company: suggestion?.company ?? "",
       confidence: suggestion?.confidence ?? "",
-      source: suggestion ? "visible LinkedIn headline" : "no clear visible LinkedIn headline",
+      source: suggestion ? visibleSource : `no clear ${visibleSource}`,
       headlinesFound: headlines.filter((value) => value.trim()).length,
     };
   }
@@ -199,6 +267,15 @@
       ? composer.value
       : (composer.innerText || composer.textContent || "");
     return value.replace(/\u200B/g, "");
+  }
+
+  function exceededCharacterLimit(composer, text) {
+    if (!isTextControl(composer) || composer.maxLength <= 0) return 0;
+    return UfxLinkedIn.exceedsCharacterLimit({
+      currentText: composerText(composer),
+      insertedText: text,
+      maxLength: composer.maxLength,
+    }) ? composer.maxLength : 0;
   }
 
   async function composerChanged(composer, before, timeoutMs = 300) {
@@ -325,7 +402,7 @@
   async function runTemplate(template) {
     const composer = activeComposer();
     if (!composer) {
-      toast("Open a LinkedIn conversation first", "error");
+      toast("Open a LinkedIn conversation or connection note first", "error");
       return;
     }
 
@@ -340,6 +417,12 @@
     if (missing.length) {
       const why = recipient.reason ? ` (${recipient.reason})` : "";
       toast(`Can't fill {{${missing[0]}}}${why} — nothing inserted`, "error");
+      return;
+    }
+
+    const characterLimit = exceededCharacterLimit(composer, text);
+    if (characterLimit) {
+      toast(`Connection notes allow ${characterLimit} characters. Shorten the template first.`, "error");
       return;
     }
 
@@ -394,12 +477,16 @@
     const composer = activeComposer();
     const info = {
       platform: "linkedin",
+      surface: composer && isConnectionNoteComposer(composer) ? "connection-note" : "conversation",
       composerFound: !!composer,
       composerCandidates: composerCandidates().map((element) => ({
         tag: element.tagName,
         classes: element.className,
         role: element.getAttribute("role"),
         ariaLabel: element.getAttribute("aria-label"),
+        placeholder: element.getAttribute("placeholder") || element.getAttribute("data-placeholder"),
+        maxLength: element.maxLength,
+        surface: isConnectionNoteComposer(element) ? "connection-note" : "conversation",
       })),
       pathname: location.pathname,
       recipient: composer ? resolveRecipient(composer) : null,

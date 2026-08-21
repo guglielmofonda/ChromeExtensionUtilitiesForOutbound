@@ -44,6 +44,62 @@ test("supports overlay headers that do not expose a profile link", () => {
   );
 });
 
+test("recognizes LinkedIn's connection invitation note surface", () => {
+  assert.equal(
+    UfxLinkedIn.isConnectionNoteContext({
+      dialogText: "Add a note to your invitation",
+    }),
+    true
+  );
+  assert.equal(
+    UfxLinkedIn.isConnectionNoteContext({
+      placeholder: "Ex: We know each other from...",
+    }),
+    true
+  );
+  assert.equal(
+    UfxLinkedIn.isConnectionNoteContext({
+      dialogText: "Create a post",
+      placeholder: "What do you want to talk about?",
+    }),
+    false
+  );
+});
+
+test("keeps connection notes within LinkedIn's character limit", () => {
+  assert.equal(
+    UfxLinkedIn.exceedsCharacterLimit({
+      currentText: "Already drafted",
+      insertedText: "x".repeat(285),
+      maxLength: 300,
+    }),
+    false
+  );
+  assert.equal(
+    UfxLinkedIn.exceedsCharacterLimit({
+      currentText: "Already drafted",
+      insertedText: "x".repeat(286),
+      maxLength: 300,
+    }),
+    true
+  );
+});
+
+test("resolves a connection-note recipient from the open member profile", () => {
+  assert.deepEqual(
+    UfxLinkedIn.recipientFromProfile({
+      nameCandidates: ["Jesse Tabak · 2nd"],
+      profileHrefs: ["https://www.linkedin.com/in/jesse-tabak/"],
+    }),
+    {
+      fullName: "Jesse Tabak",
+      firstName: "Jesse",
+      handle: "jesse-tabak",
+      reason: "",
+    }
+  );
+});
+
 test("fails closed for group conversations", () => {
   assert.match(
     UfxLinkedIn.recipientFromHeader({
