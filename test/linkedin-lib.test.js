@@ -195,3 +195,27 @@ test("keeps profile company resolution conservative", () => {
     { company: "Acme Labs", source: "bio-role", confidence: "high" }
   );
 });
+
+test("resolves a current company from the open profile's Experience entry", () => {
+  assert.deepEqual(
+    UfxLinkedIn.companyFromProfileSignals({
+      experienceCompanyCandidates: ["Sedona logo", "Sedona"],
+      headlines: ["freight & software"],
+    }),
+    { company: "Sedona", source: "profile-experience", confidence: "high" }
+  );
+});
+
+test("uses LinkedIn's profile-title company without treating a generic headline as one", () => {
+  assert.equal(
+    UfxLinkedIn.profileCompanyFromTitle("Jesse Tabak - freight & software | LinkedIn"),
+    ""
+  );
+  assert.deepEqual(
+    UfxLinkedIn.companyFromProfileSignals({
+      titleCandidates: ["Jesse Tabak - Sedona | LinkedIn"],
+      headlines: ["freight & software"],
+    }),
+    { company: "Sedona", source: "profile-title", confidence: "medium" }
+  );
+});

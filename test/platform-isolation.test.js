@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const manifest = JSON.parse(fs.readFileSync(require.resolve("../manifest.json"), "utf8"));
 
 test("identifies the current unpacked extension build", () => {
-  assert.equal(manifest.version, "0.4.3");
+  assert.equal(manifest.version, "0.4.4");
 });
 
 test("keeps the existing X content-script stack unchanged", () => {
@@ -60,7 +60,9 @@ test("LinkedIn connection-note harness uses the isolated adapter and cannot auto
   assert.match(harness, /contenteditable="plaintext-only"/);
   assert.match(harness, /data-placeholder="Ex: We know each other from\.\.\."/);
   assert.match(harness, /focused-fallback/);
-  assert.match(harness, /Current company: Sedona/);
+  assert.match(harness, /Jesse Tabak - Sedona \| LinkedIn/);
+  assert.match(harness, /<h2>Experience<\/h2>/);
+  assert.match(harness, /Sedona logo/);
   assert.match(harness, /freight &amp; software/);
   assert.doesNotMatch(harness, /sendButton\.click\s*\(/);
 });
