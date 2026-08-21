@@ -80,8 +80,10 @@
     '.pv-top-card [data-anonymize="headline"]',
   ];
   const PROFILE_CURRENT_COMPANY_SELECTORS = [
-    '[aria-label^="Current company:" i]',
+    '[aria-label*="current company" i]',
     'a[href*="/company/"]',
+    '.pv-text-details__right-panel > li:first-child:not(:only-child)',
+    '.pv-text-details__right-panel > ul > li:first-child:not(:only-child)',
   ];
 
   let templates = [];
@@ -265,6 +267,34 @@
     return values.filter(Boolean);
   }
 
+  function profileExperienceCompanyCandidates() {
+    const values = [];
+    const headings = document.querySelectorAll('h2, h3, [role="heading"]');
+    for (const heading of headings) {
+      const headingText = (heading.innerText || heading.textContent || "").trim();
+      if (!/^Experience$/i.test(headingText)) continue;
+      const section = heading.closest("section") ?? heading.parentElement;
+      if (!section) continue;
+      const rows = section.querySelectorAll('li, [data-view-name="profile-component-entity"]');
+      for (const row of rows) {
+        const rowText = row.innerText || row.textContent || "";
+        if (!/\bPresent\b/i.test(rowText)) continue;
+        const companyElements = row.querySelectorAll(
+          'a[href*="/company/"], img[alt$=" logo" i]'
+        );
+        for (const element of companyElements) {
+          values.push(
+            element.getAttribute("aria-label") || "",
+            element.getAttribute("alt") || "",
+            element.innerText || element.textContent || "",
+            element.querySelector?.("img[alt]")?.getAttribute("alt") || ""
+          );
+        }
+      }
+    }
+    return values.filter(Boolean);
+  }
+
   function profileHrefs(block) {
     const hrefs = [];
     if (block.matches?.('a[href*="/in/"]') && isVisible(block)) {
@@ -292,16 +322,20 @@
     ].filter(Boolean);
   }
 
+  function profileTitleCandidates() {
+    return [
+      document.querySelector('meta[property="og:title"]')?.getAttribute("content"),
+      document.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
+      document.title,
+    ].filter(Boolean);
+  }
+
   function resolveProfileRecipient() {
     const scope = profilePageScope();
     return UfxLinkedIn.recipientFromProfile({
       nameCandidates: textCandidates(scope, PROFILE_NAME_SELECTORS),
       profileHrefs: currentProfileHrefs(),
-      titleCandidates: [
-        document.querySelector('meta[property="og:title"]')?.getAttribute("content"),
-        document.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
-        document.title,
-      ].filter(Boolean),
+      titleCandidates: profileTitleCandidates(),
     });
   }
 
@@ -338,23 +372,40 @@
         headlines.push(...textCandidates(block, selectors));
       }
     }
+    const currentCompanyCandidates = isConnectionNote
+      ? profileCurrentCompanyCandidates(scope)
+      : [];
+    const experienceCompanyCandidates = isConnectionNote
+      ? profileExperienceCompanyCandidates()
+      : [];
+    const titleCandidates = isConnectionNote ? profileTitleCandidates() : [];
     const suggestion = isConnectionNote
       ? UfxLinkedIn.companyFromProfileSignals({
-        currentCompanyCandidates: profileCurrentCompanyCandidates(scope),
+        currentCompanyCandidates,
+        experienceCompanyCandidates,
+        titleCandidates,
         headlines,
       })
       : UfxLinkedIn.companyFromHeadlines(headlines);
-    const visibleSource = suggestion?.source === "profile-current-company"
-      ? "visible LinkedIn current company"
-      : isConnectionNote
-        ? "visible LinkedIn profile headline"
-        : "visible LinkedIn headline";
+    let visibleSource = isConnectionNote
+      ? "visible LinkedIn profile headline"
+      : "visible LinkedIn headline";
+    if (suggestion?.source === "profile-current-company") {
+      visibleSource = "visible LinkedIn current company";
+    } else if (suggestion?.source === "profile-experience") {
+      visibleSource = "current LinkedIn Experience entry";
+    } else if (suggestion?.source === "profile-title") {
+      visibleSource = "LinkedIn profile title";
+    }
     return {
       status: suggestion ? "suggested" : "none",
       company: suggestion?.company ?? "",
       confidence: suggestion?.confidence ?? "",
       source: suggestion ? visibleSource : `no clear ${visibleSource}`,
       headlinesFound: headlines.filter((value) => value.trim()).length,
+      currentCompanyCandidates,
+      experienceCompanyCandidates,
+      titleCandidates,
     };
   }
 

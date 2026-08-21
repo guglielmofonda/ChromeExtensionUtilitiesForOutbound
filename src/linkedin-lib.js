@@ -58,6 +58,21 @@ const UfxLinkedIn = ((Templates) => {
     return cleanHeaderName(title);
   }
 
+  function profileCompanyFromTitle(raw) {
+    const title = String(raw || "")
+      .replace(/\s*\|\s*LinkedIn\b.*$/i, "")
+      .trim();
+    const separator = title.search(/\s[-–—]\s/);
+    if (separator < 1) return "";
+    const detail = title.slice(separator).replace(/^\s*[-–—]\s*/, "").trim();
+    if (!detail || /^(?:LinkedIn|Sign in|Log in)\b/i.test(detail)) return "";
+
+    const explicit = Templates.inferCompanyFromBio(detail);
+    if (explicit) return explicit.company;
+    const namedCompany = Templates.inferCompanyFromBio(`Founder at ${detail}`);
+    return namedCompany?.company || "";
+  }
+
   function isGroupLabel(value) {
     return GROUP_LABEL_RE.test(value || "");
   }
@@ -175,21 +190,52 @@ const UfxLinkedIn = ((Templates) => {
     return "";
   }
 
-  function companyFromProfileSignals({ currentCompanyCandidates = [], headlines = [] } = {}) {
-    const companies = [...new Map(
-      currentCompanyCandidates
+  function uniqueProfileCompanies(candidates = []) {
+    return [...new Map(
+      candidates
         .map(cleanProfileCompany)
         .filter(Boolean)
         .map((company) => [company.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, ""), company])
     ).values()];
-    if (companies.length === 1) {
+  }
+
+  function companyFromProfileSignals({
+    currentCompanyCandidates = [],
+    experienceCompanyCandidates = [],
+    titleCandidates = [],
+    headlines = [],
+  } = {}) {
+    const currentCompanies = uniqueProfileCompanies(currentCompanyCandidates);
+    if (currentCompanies.length === 1) {
       return {
-        company: companies[0],
+        company: currentCompanies[0],
         source: "profile-current-company",
         confidence: "high",
       };
     }
-    if (companies.length > 1) return null;
+    if (currentCompanies.length > 1) return null;
+
+    const experienceCompanies = uniqueProfileCompanies(experienceCompanyCandidates);
+    if (experienceCompanies.length === 1) {
+      return {
+        company: experienceCompanies[0],
+        source: "profile-experience",
+        confidence: "high",
+      };
+    }
+    if (experienceCompanies.length > 1) return null;
+
+    const titleCompanies = uniqueProfileCompanies(
+      titleCandidates.map(profileCompanyFromTitle).filter(Boolean)
+    );
+    if (titleCompanies.length === 1) {
+      return {
+        company: titleCompanies[0],
+        source: "profile-title",
+        confidence: "medium",
+      };
+    }
+    if (titleCompanies.length > 1) return null;
     return companyFromHeadlines(headlines);
   }
 
@@ -202,6 +248,7 @@ const UfxLinkedIn = ((Templates) => {
     exceedsCharacterLimit,
     isConnectionNoteContext,
     isGroupLabel,
+    profileCompanyFromTitle,
     profileNameFromTitle,
     profileSlugFromHref,
     recipientFromHeader,
