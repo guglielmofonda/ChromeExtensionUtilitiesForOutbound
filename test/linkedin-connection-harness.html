@@ -4,17 +4,19 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Jesse Tabak - Sedona | LinkedIn</title>
+    <title>Jesse Tabak - freight &amp; software | LinkedIn</title>
     <link rel="canonical" href="https://www.linkedin.com/in/jesse-tabak/" />
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="../src/content.css" />
     <style>
       body { margin: 0; background: #f4f2ee; color: #191919; font: 14px/1.5 -apple-system, system-ui, sans-serif; }
       main { width: min(960px, calc(100% - 32px)); margin: 40px auto; }
-      .pv-top-card { padding: 28px; border-radius: 10px; background: #fff; }
+      [data-view-name="profile-card"] { display: grid; grid-template-columns: 1fr auto; gap: 40px; padding: 28px; border-radius: 10px; background: #fff; }
       h1 { margin: 0; font-size: 30px; }
       .text-body-medium { margin-top: 4px; color: #555; font-size: 17px; }
-      .pv-text-details__right-panel { margin-top: 12px; }
+      .profile-affiliations { display: grid; align-content: start; gap: 16px; min-width: 260px; }
+      .profile-affiliation { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+      .profile-affiliation img { width: 32px; height: 32px; }
       .backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 55%); }
       .connection-note-modal { position: fixed; z-index: 1; top: 84px; left: 50%; width: min(640px, calc(100% - 32px)); transform: translateX(-50%); border-radius: 10px; background: #fff; box-shadow: 0 4px 18px rgb(0 0 0 / 28%); }
       .connection-note-modal h2 { margin: 0; padding: 20px 28px; border-bottom: 1px solid #ddd; font-size: 24px; }
@@ -30,26 +32,21 @@
   </head>
   <body>
     <main>
-      <section class="pv-top-card">
+      <section data-view-name="profile-card">
         <div class="pv-text-details__left-panel">
           <h1 class="text-heading-xlarge">Jesse Tabak <span>· 2nd</span></h1>
           <div class="text-body-medium break-words">freight &amp; software</div>
         </div>
-        <div class="pv-text-details__right-panel">
-          <a href="https://www.linkedin.com/school/northwestern-university/">Northwestern University</a>
+        <div class="profile-affiliations">
+          <div class="profile-affiliation">
+            <img src="data:," alt="Sedona logo" />
+            <span>Sedona</span>
+          </div>
+          <div class="profile-affiliation">
+            <img src="data:," alt="Northwestern University logo" />
+            <a href="https://www.linkedin.com/school/northwestern-university/">Northwestern University</a>
+          </div>
         </div>
-      </section>
-      <section>
-        <h2>Experience</h2>
-        <ul>
-          <li>
-            <a href="https://www.linkedin.com/company/sedona/">
-              <img src="data:," alt="Sedona logo" />
-              <span>Sedona</span>
-            </a>
-            <span>July 2026 - Present</span>
-          </li>
-        </ul>
       </section>
     </main>
     <div class="backdrop"></div>
@@ -146,6 +143,7 @@
             toast: document.querySelector(".ufx-toast")?.textContent || "",
             surface: debug.surface,
             recipient: debug.recipient,
+            companyLookup: debug.lastResolution?.companyLookup,
           };
           const output = document.querySelector("#result");
           output.hidden = false;
