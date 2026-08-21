@@ -39,8 +39,9 @@ name variables, but a template that explicitly needs `{{handle}}` fails closed.
   existing X-only background path briefly opens that one public profile in an
   inactive tab, reads its description metadata, then closes it.
 - On LinkedIn, it only uses a clear company signal from the conversation or member
-  profile already open: the top card, one current Experience entry already loaded on
-  that page, profile-title metadata, then the headline. It never opens or reads
+  profile already open: the top-card company row beside the education row, one current
+  Experience entry already loaded on that page, profile-title metadata, then the
+  headline. It never opens or reads
   another LinkedIn profile in the background.
 
 A single clear company is inserted and selected for immediate review. Generic,

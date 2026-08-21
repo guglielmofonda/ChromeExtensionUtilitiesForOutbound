@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const manifest = JSON.parse(fs.readFileSync(require.resolve("../manifest.json"), "utf8"));
 
 test("identifies the current unpacked extension build", () => {
-  assert.equal(manifest.version, "0.4.4");
+  assert.equal(manifest.version, "0.4.5");
 });
 
 test("keeps the existing X content-script stack unchanged", () => {
@@ -49,6 +49,17 @@ test("LinkedIn adapter has no network, profile-tab, or send action", () => {
   assert.match(source, /EDITABLE_COMPOSER_SELECTOR/);
 });
 
+test("LinkedIn company lookup includes the full profile card and its affiliation rows", () => {
+  const source = fs.readFileSync(require.resolve("../src/linkedin-dm-templates.js"), "utf8");
+  const fullCardLookup = source.indexOf('main [data-view-name="profile-card"]');
+  const leftPanelFallback = source.indexOf('leftPanel?.closest("section, .artdeco-card")');
+
+  assert.ok(fullCardLookup >= 0);
+  assert.ok(leftPanelFallback > fullCardLookup);
+  assert.match(source, /PROFILE_EDUCATION_SELECTORS/);
+  assert.match(source, /previousElementSibling/);
+});
+
 test("LinkedIn connection-note harness uses the isolated adapter and cannot auto-send", () => {
   const harness = fs.readFileSync(
     require.resolve("./linkedin-connection-harness.html"),
@@ -60,9 +71,14 @@ test("LinkedIn connection-note harness uses the isolated adapter and cannot auto
   assert.match(harness, /contenteditable="plaintext-only"/);
   assert.match(harness, /data-placeholder="Ex: We know each other from\.\.\."/);
   assert.match(harness, /focused-fallback/);
-  assert.match(harness, /Jesse Tabak - Sedona \| LinkedIn/);
-  assert.match(harness, /<h2>Experience<\/h2>/);
+  assert.match(harness, /data-view-name="profile-card"/);
+  assert.match(harness, /Jesse Tabak - freight &amp; software \| LinkedIn/);
+  assert.match(harness, /profile-affiliation/);
+  assert.match(harness, /linkedin\.com\/school\/northwestern-university/);
   assert.match(harness, /Sedona logo/);
   assert.match(harness, /freight &amp; software/);
+  assert.doesNotMatch(harness, /linkedin\.com\/company\/sedona/);
+  assert.doesNotMatch(harness, /current company/i);
+  assert.doesNotMatch(harness, /<h2>Experience<\/h2>/);
   assert.doesNotMatch(harness, /sendButton\.click\s*\(/);
 });

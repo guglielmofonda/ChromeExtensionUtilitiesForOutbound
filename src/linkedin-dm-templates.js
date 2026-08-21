@@ -85,6 +85,10 @@
     '.pv-text-details__right-panel > li:first-child:not(:only-child)',
     '.pv-text-details__right-panel > ul > li:first-child:not(:only-child)',
   ];
+  const PROFILE_EDUCATION_SELECTORS = [
+    '[aria-label*="education" i]',
+    'a[href*="/school/"]',
+  ];
 
   let templates = [];
   let templateRunInFlight = false;
@@ -250,11 +254,61 @@
     return values;
   }
 
+  function hasProfileEducationSignal(element) {
+    return PROFILE_EDUCATION_SELECTORS.some((selector) =>
+      element.matches?.(selector) || element.querySelector(selector)
+    );
+  }
+
+  function compactProfileRowText(element) {
+    return (element.innerText || element.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function isAffiliationSibling(candidate, educationRow) {
+    const text = compactProfileRowText(candidate);
+    if (!text || text.length > 160 || !isVisible(candidate)) return false;
+    if (hasProfileEducationSignal(candidate) || candidate.querySelector("h1")) return false;
+
+    const rowSelector = 'li, a, button, [role="button"]';
+    const semanticPair = candidate.matches(rowSelector) && educationRow.matches(rowSelector);
+    const matchingTag = candidate.tagName === educationRow.tagName;
+    const sharedClass = [...candidate.classList].some((name) =>
+      educationRow.classList.contains(name)
+    );
+    const visualPair = !!candidate.querySelector("img, svg") &&
+      !!educationRow.querySelector("img, svg");
+    return semanticPair || matchingTag || sharedClass || visualPair;
+  }
+
+  function profileAffiliationCompanyElements(scope) {
+    const educationMarkers = new Set();
+    for (const selector of PROFILE_EDUCATION_SELECTORS) {
+      addIfMatches(educationMarkers, scope, selector);
+    }
+
+    const companyRows = new Set();
+    for (const marker of educationMarkers) {
+      let educationRow = marker;
+      while (educationRow && educationRow !== scope) {
+        const previous = educationRow.previousElementSibling;
+        if (previous && isAffiliationSibling(previous, educationRow)) {
+          companyRows.add(previous);
+          break;
+        }
+        educationRow = educationRow.parentElement;
+      }
+    }
+    return companyRows;
+  }
+
   function profileCurrentCompanyCandidates(scope) {
     const elements = new Set();
     for (const selector of PROFILE_CURRENT_COMPANY_SELECTORS) {
       addIfMatches(elements, scope, selector);
     }
+    for (const element of profileAffiliationCompanyElements(scope)) elements.add(element);
     const values = [];
     for (const element of elements) {
       if (!isVisible(element)) continue;
@@ -308,11 +362,19 @@
   }
 
   function profilePageScope() {
-    const profileCard = document.querySelector(".pv-top-card") ??
-      document.querySelector(".pv-text-details__left-panel") ??
+    // The current profile layout keeps the company and education affiliations
+    // beside the left headline column. Never return that left column alone.
+    const leftPanel = document.querySelector(".pv-text-details__left-panel");
+    const profileCard = leftPanel?.closest(
+      '.pv-top-card, [data-view-name="profile-card"]'
+    ) ??
+      document.querySelector(".pv-top-card") ??
       document.querySelector('main [data-view-name="profile-card"]') ??
       document.querySelector('[data-view-name="profile-card"]');
-    return profileCard ?? document.querySelector("main") ?? document;
+    if (profileCard) return profileCard;
+
+    return leftPanel?.closest("section, .artdeco-card") ??
+      document.querySelector("main") ?? document;
   }
 
   function currentProfileHrefs() {
