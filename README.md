@@ -1,7 +1,7 @@
 # DM Templates for X & LinkedIn
 
-A Manifest V3 Chrome extension for shortcut-driven, human-reviewed DM templates on
-X and LinkedIn.
+A Manifest V3 Chrome extension for shortcut-driven, human-reviewed message templates
+on X and LinkedIn.
 
 ## Load locally
 
@@ -12,19 +12,21 @@ X and LinkedIn.
 
 ## DM templates
 
-Outbound DMs with variables, filled from the conversation you're looking at — no AI,
-no auto-send or campaign automation; you always press Send yourself.
+Outbound messages with variables, filled from the conversation or LinkedIn connection
+note you're looking at. There is no AI, auto-send, or campaign automation; you always
+press Send yourself.
 
 1. Click the toolbar icon → the template manager opens.
 2. Write a template, e.g. `Hey {{first_name}}! …`, and record a shortcut (defaults: ⌥1, ⌥2).
-3. Open a one-to-one conversation on X or LinkedIn and press the shortcut. The
-   extension pre-fills the open composer with variables from that conversation.
-   Review, edit, and press Send yourself.
+3. Open a one-to-one conversation on X or LinkedIn, or open **Add a note** while
+   connecting from a LinkedIn member profile, and press the shortcut. The extension
+   pre-fills only that open field. Review, personalize, and press Send yourself.
 
 Variables: `{{first_name}}`, `{{full_name}}`, `{{handle}}` resolve automatically from
-the conversation header. Names are cleaned programmatically — emoji stripped,
-`| Building X`-style suffixes cut, `JANE` → `Jane`. If one can't be resolved (group
-chat, no header found) nothing is inserted and a toast explains why.
+the conversation header or the already-open LinkedIn profile header. Names are cleaned
+programmatically: emoji stripped, `| Building X`-style suffixes cut, `JANE` → `Jane`.
+If one can't be resolved (group chat, no header found), nothing is inserted and a
+toast explains why.
 
 `{{handle}}` is the X handle on X and the public `/in/` profile identifier on
 LinkedIn. LinkedIn overlay variants that do not expose a profile link can still fill
@@ -37,8 +39,8 @@ name variables, but a template that explicitly needs `{{handle}}` fails closed.
   existing X-only background path briefly opens that one public profile in an
   inactive tab, reads its description metadata, then closes it.
 - On LinkedIn, it only uses a clear company signal already visible in the open
-  conversation header. It never opens or scrapes a LinkedIn profile in the
-  background.
+  conversation or member-profile header. It never opens or reads another LinkedIn
+  profile in the background.
 
 A single clear company is inserted and selected for immediate review. Generic,
 conflicting, or unavailable details fall back to a selected `[company]` token. No
@@ -61,7 +63,7 @@ and LinkedIn's User Agreement is stricter about browser add-ons.
 | `src/background.js`    | Opens the manager, seeds templates, and serves the existing X-only profile lookup |
 | `src/content.js`       | Platform-neutral runner for registered utilities           |
 | `src/dm-templates.js`  | Existing X/XChat adapter (kept isolated)                    |
-| `src/linkedin-dm-templates.js` | LinkedIn messaging-page and overlay adapter         |
+| `src/linkedin-dm-templates.js` | LinkedIn conversation and connection-note adapter  |
 | `src/linkedin-lib.js`  | Pure LinkedIn recipient/group/headline parsing              |
 | `src/template-lib.js`  | Pure template helpers shared by both platforms and the manager |
 | `src/options.*`        | Template manager (list, editor, shortcut recorder, preview) |
@@ -77,8 +79,9 @@ node --test test/*.test.js
 git diff --check
 ```
 
-`test/xchat-harness.html` and `test/linkedin-harness.html` exercise the production
-content-script stacks against local DOM fixtures. Neither harness triggers Send.
+`test/xchat-harness.html`, `test/linkedin-harness.html`, and
+`test/linkedin-connection-harness.html` exercise the production content-script stacks
+against local DOM fixtures. None of the harnesses triggers Send.
 
 ## Adding a utility
 

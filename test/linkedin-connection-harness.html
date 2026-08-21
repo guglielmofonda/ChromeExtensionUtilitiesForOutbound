@@ -1,0 +1,132 @@
+<!doctype html>
+<!-- Integration harness for LinkedIn's profile connection-note modal.
+     It uses the production content-script stack and never clicks Send. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>LinkedIn connection-note insertion harness</title>
+    <link rel="canonical" href="https://www.linkedin.com/in/jesse-tabak/" />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="../src/content.css" />
+    <style>
+      body { margin: 0; background: #f4f2ee; color: #191919; font: 14px/1.5 -apple-system, system-ui, sans-serif; }
+      main { width: min(960px, calc(100% - 32px)); margin: 40px auto; }
+      .pv-top-card { padding: 28px; border-radius: 10px; background: #fff; }
+      h1 { margin: 0; font-size: 30px; }
+      .text-body-medium { margin-top: 4px; color: #555; font-size: 17px; }
+      .backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 55%); }
+      .artdeco-modal { position: fixed; z-index: 1; top: 84px; left: 50%; width: min(640px, calc(100% - 32px)); transform: translateX(-50%); border-radius: 10px; background: #fff; box-shadow: 0 4px 18px rgb(0 0 0 / 28%); }
+      .artdeco-modal h2 { margin: 0; padding: 20px 28px; border-bottom: 1px solid #ddd; font-size: 24px; }
+      .modal-body { padding: 28px; }
+      textarea { box-sizing: border-box; width: 100%; min-height: 104px; padding: 10px; border: 2px solid #0a66c2; border-radius: 5px; font: inherit; resize: vertical; }
+      .counter { text-align: right; color: #666; }
+      .actions { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 28px; border-top: 1px solid #ddd; }
+      button { border: 0; border-radius: 999px; padding: 9px 20px; background: #0a66c2; color: #fff; font-weight: 700; }
+      button:disabled { background: #ddd; color: #888; }
+      #result { position: fixed; z-index: 2; right: 16px; bottom: 16px; max-width: 520px; padding: 12px; background: #fff; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="pv-top-card">
+        <div class="pv-text-details__left-panel">
+          <h1 class="text-heading-xlarge">Jesse Tabak <span>· 2nd</span></h1>
+          <div class="text-body-medium break-words">Founder at Acme Labs</div>
+        </div>
+      </section>
+    </main>
+    <div class="backdrop"></div>
+    <section class="artdeco-modal" role="dialog" aria-labelledby="connection-note-title">
+      <h2 id="connection-note-title">Add a note to your invitation</h2>
+      <div class="modal-body">
+        <p>LinkedIn members are more likely to accept invitations that include a personal note.</p>
+        <textarea
+          id="custom-message"
+          name="message"
+          maxlength="300"
+          aria-label="Add a note to your invitation"
+          placeholder="Ex: We know each other from..."
+        ></textarea>
+        <div class="counter"><span id="count">0</span>/300</div>
+      </div>
+      <div class="actions">
+        <button type="button">Cancel</button>
+        <button id="sendButton" type="button" disabled>Send</button>
+      </div>
+    </section>
+    <pre id="result" hidden></pre>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      const fixtureCase = params.get("case") || "single";
+      const composer = document.querySelector("#custom-message");
+      const sendButton = document.querySelector("#sendButton");
+      const templateBody = fixtureCase === "limit"
+        ? "x".repeat(301)
+        : "hey {{first_name}}, what is the latest with {{company}}? are you a solo founder?";
+
+      window.__sendClicks = 0;
+      window.__inputEvents = 0;
+      sendButton.addEventListener("click", () => { window.__sendClicks += 1; });
+      composer.addEventListener("input", () => {
+        window.__inputEvents += 1;
+        document.querySelector("#count").textContent = composer.value.length;
+        sendButton.disabled = composer.value.length === 0 || composer.value.length > composer.maxLength;
+      });
+      window.__harnessStore = {
+        enabled: {},
+        dmTemplates: {
+          version: 1,
+          templates: [{
+            id: "t1",
+            name: "Latest + company",
+            body: templateBody,
+            shortcut: { code: "Digit1", alt: true, ctrl: false, meta: false, shift: false },
+          }],
+        },
+      };
+      window.chrome = {
+        storage: {
+          sync: { get: async (key) => ({ [key]: window.__harnessStore[key] }) },
+          onChanged: { addListener() {} },
+        },
+      };
+    </script>
+    <script src="../src/template-lib.js"></script>
+    <script src="../src/linkedin-lib.js"></script>
+    <script src="../src/linkedin-dm-templates.js"></script>
+    <script src="../src/content.js"></script>
+    <script>
+      if (params.get("auto") === "1") {
+        setTimeout(() => {
+          composer.focus();
+          window.dispatchEvent(new KeyboardEvent("keydown", {
+            bubbles: true,
+            cancelable: true,
+            code: "Digit1",
+            key: "1",
+            altKey: true,
+          }));
+        }, 50);
+        setTimeout(() => {
+          const debug = window.__ufxLinkedInDmDebug();
+          const result = {
+            case: fixtureCase,
+            text: composer.value,
+            selected: composer.value.slice(composer.selectionStart, composer.selectionEnd),
+            sendDisabled: sendButton.disabled,
+            sendClicks: window.__sendClicks,
+            inputEvents: window.__inputEvents,
+            toast: document.querySelector(".ufx-toast")?.textContent || "",
+            surface: debug.surface,
+            recipient: debug.recipient,
+          };
+          const output = document.querySelector("#result");
+          output.hidden = false;
+          output.textContent = JSON.stringify(result);
+          document.title = `LinkedIn connection harness complete: ${fixtureCase}`;
+        }, 800);
+      }
+    </script>
+  </body>
+</html>

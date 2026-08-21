@@ -5,6 +5,8 @@ const UfxLinkedIn = ((Templates) => {
   const LINKEDIN_HOSTS = new Set(["linkedin.com", "www.linkedin.com"]);
   const GENERIC_HEADER_RE = /^(?:active now|available on mobile|conversation|conversation details|details|linkedin|messaging|new message|online|you)$/i;
   const GROUP_LABEL_RE = /(?:\band\s+\d+\s+others?\b|\b\d+\s+(?:members?|participants?)\b|\bgroup conversation\b)/i;
+  const CONNECTION_NOTE_TITLE_RE = /\badd a note to your invitation\b/i;
+  const CONNECTION_NOTE_PLACEHOLDER_RE = /\bwe know each other from\b/i;
 
   function profileSlugFromHref(href, baseUrl = "https://www.linkedin.com/") {
     if (!href) return "";
@@ -49,6 +51,15 @@ const UfxLinkedIn = ((Templates) => {
     return GROUP_LABEL_RE.test(value || "");
   }
 
+  function isConnectionNoteContext({ dialogText = "", placeholder = "" } = {}) {
+    return CONNECTION_NOTE_TITLE_RE.test(dialogText) ||
+      CONNECTION_NOTE_PLACEHOLDER_RE.test(placeholder);
+  }
+
+  function exceedsCharacterLimit({ currentText = "", insertedText = "", maxLength = -1 } = {}) {
+    return maxLength > 0 && currentText.length + insertedText.length > maxLength;
+  }
+
   function recipientFromHeader({ nameCandidates = [], profileHrefs = [], headerText = "" } = {}) {
     const slugs = [...new Map(
       profileHrefs
@@ -88,6 +99,18 @@ const UfxLinkedIn = ((Templates) => {
     };
   }
 
+  function recipientFromProfile({ nameCandidates = [], profileHrefs = [] } = {}) {
+    const recipient = recipientFromHeader({
+      nameCandidates,
+      profileHrefs,
+      headerText: nameCandidates.join("\n"),
+    });
+    if (recipient.reason === "no conversation header found") {
+      return { ...recipient, reason: "no profile header found" };
+    }
+    return recipient;
+  }
+
   function companyFromHeadlines(headlines = []) {
     const suggestions = [];
     for (const raw of headlines) {
@@ -108,9 +131,12 @@ const UfxLinkedIn = ((Templates) => {
   return {
     cleanHeaderName,
     companyFromHeadlines,
+    exceedsCharacterLimit,
+    isConnectionNoteContext,
     isGroupLabel,
     profileSlugFromHref,
     recipientFromHeader,
+    recipientFromProfile,
   };
 })(typeof UfxTemplates !== "undefined" ? UfxTemplates : require("./template-lib.js"));
 
