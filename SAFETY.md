@@ -70,11 +70,13 @@ These apply to **human-sent messages too** — no automation qualifier:
 - software that overlays or otherwise modifies the service or its appearance.
 
 The LinkedIn adapter therefore does **not** open profile tabs, fetch profiles, build
-lists, iterate conversations, or trigger Send. It reads only the open conversation
-header or the visible header of the member profile the user already opened. It fills
-only the conversation composer or connection note the user opened, in direct response
-to the user's shortcut. That is materially narrower than outreach automation, but it
-still interacts with LinkedIn's page. Treat account-policy risk as non-zero.
+lists, iterate conversations, or trigger Send. It reads only the open conversation or
+the member profile the user already opened, including bounded current-company signals
+from its top card, one current Experience entry already loaded on the page, and profile
+title metadata. It fills only the conversation composer or connection note the user
+opened, in direct response to the user's shortcut. That is materially narrower than
+outreach automation, but it still reads and modifies LinkedIn's page. Treat
+account-policy risk as non-zero.
 
 ### Professional Community Policies and messaging access
 

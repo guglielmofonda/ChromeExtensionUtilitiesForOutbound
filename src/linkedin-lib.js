@@ -7,6 +7,9 @@ const UfxLinkedIn = ((Templates) => {
   const GROUP_LABEL_RE = /(?:\band\s+\d+\s+others?\b|\b\d+\s+(?:members?|participants?)\b|\bgroup conversation\b)/i;
   const CONNECTION_NOTE_TITLE_RE = /\badd a note to your invitation\b/i;
   const CONNECTION_NOTE_PLACEHOLDER_RE = /\bwe know each other from\b/i;
+  const CURRENT_COMPANY_HELP_RE = /\s*[.·|]?\s*click to skip to (?:the )?experience card\b.*$/i;
+  const LINKEDIN_NOTIFICATION_PREFIX_RE = /^\s*\(\s*\d+\+?\s*\)\s*/;
+  const NON_NAME_TOKEN_RE = /^(?:\(?\d+\+?\)?|(?:1st|2nd|3rd)(?:-degree)?(?: connection)?)$/i;
 
   function profileSlugFromHref(href, baseUrl = "https://www.linkedin.com/") {
     if (!href) return "";
@@ -41,10 +44,42 @@ const UfxLinkedIn = ((Templates) => {
         .replace(/\s+(?:active now|available on mobile|online)\s*$/i, "")
         .trim();
       const cleaned = Templates.cleanDisplayName(line);
-      if (!cleaned || cleaned.length > 100 || GENERIC_HEADER_RE.test(cleaned)) continue;
+      if (
+        !cleaned ||
+        cleaned.length > 100 ||
+        !/\p{L}/u.test(cleaned) ||
+        GENERIC_HEADER_RE.test(cleaned) ||
+        NON_NAME_TOKEN_RE.test(cleaned)
+      ) continue;
       return cleaned;
     }
     return "";
+  }
+
+  function profileNameFromTitle(raw) {
+    let title = String(raw || "")
+      .replace(LINKEDIN_NOTIFICATION_PREFIX_RE, "")
+      .replace(/\s*\|\s*LinkedIn\b.*$/i, "")
+      .trim();
+    const detailSeparator = title.search(/\s[-–—]\s/);
+    if (detailSeparator > 0) title = title.slice(0, detailSeparator).trim();
+    if (!title || /^(?:LinkedIn|Sign in|Log in)\b/i.test(title)) return "";
+    return cleanHeaderName(title);
+  }
+
+  function profileCompanyFromTitle(raw) {
+    const title = String(raw || "")
+      .replace(/\s*\|\s*LinkedIn\b.*$/i, "")
+      .trim();
+    const separator = title.search(/\s[-–—]\s/);
+    if (separator < 1) return "";
+    const detail = title.slice(separator).replace(/^\s*[-–—]\s*/, "").trim();
+    if (!detail || /^(?:LinkedIn|Sign in|Log in)\b/i.test(detail)) return "";
+
+    const explicit = Templates.inferCompanyFromBio(detail);
+    if (explicit) return explicit.company;
+    const namedCompany = Templates.inferCompanyFromBio(`Founder at ${detail}`);
+    return namedCompany?.company || "";
   }
 
   function isGroupLabel(value) {
@@ -53,7 +88,15 @@ const UfxLinkedIn = ((Templates) => {
 
   function isConnectionNoteContext({ dialogText = "", placeholder = "" } = {}) {
     return CONNECTION_NOTE_TITLE_RE.test(dialogText) ||
+      CONNECTION_NOTE_PLACEHOLDER_RE.test(dialogText) ||
+      CONNECTION_NOTE_TITLE_RE.test(placeholder) ||
       CONNECTION_NOTE_PLACEHOLDER_RE.test(placeholder);
+  }
+
+  function connectionNoteCharacterLimit(counterText = "", fallback = 300) {
+    const match = String(counterText).match(/\b\d+\s*\/\s*(\d{1,4})\b/);
+    const parsed = Number(match?.[1]);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
   }
 
   function exceedsCharacterLimit({ currentText = "", insertedText = "", maxLength = -1 } = {}) {
@@ -99,11 +142,19 @@ const UfxLinkedIn = ((Templates) => {
     };
   }
 
-  function recipientFromProfile({ nameCandidates = [], profileHrefs = [] } = {}) {
+  function recipientFromProfile({
+    nameCandidates = [],
+    profileHrefs = [],
+    titleCandidates = [],
+  } = {}) {
+    const visibleNames = nameCandidates.map(cleanHeaderName).filter(Boolean);
+    const fallbackNames = visibleNames.length
+      ? []
+      : titleCandidates.map(profileNameFromTitle).filter(Boolean);
     const recipient = recipientFromHeader({
-      nameCandidates,
+      nameCandidates: visibleNames.length ? visibleNames : fallbackNames,
       profileHrefs,
-      headerText: nameCandidates.join("\n"),
+      headerText: (visibleNames.length ? visibleNames : fallbackNames).join("\n"),
     });
     if (recipient.reason === "no conversation header found") {
       return { ...recipient, reason: "no profile header found" };
@@ -128,12 +179,86 @@ const UfxLinkedIn = ((Templates) => {
     return unique.size === 1 ? [...unique.values()][0] : null;
   }
 
+  function cleanProfileCompany(raw) {
+    const lines = String(raw || "").split(/\n+/);
+    for (let line of lines) {
+      line = line
+        .replace(/^current company\s*:\s*/i, "")
+        .replace(CURRENT_COMPANY_HELP_RE, "")
+        .replace(/\s+logo\s*$/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (
+        !line ||
+        line.length > 100 ||
+        /^(?:company|current company|experience)$/i.test(line) ||
+        /https?:\/\/|www\./i.test(line)
+      ) continue;
+      return line;
+    }
+    return "";
+  }
+
+  function uniqueProfileCompanies(candidates = []) {
+    return [...new Map(
+      candidates
+        .map(cleanProfileCompany)
+        .filter(Boolean)
+        .map((company) => [company.toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, ""), company])
+    ).values()];
+  }
+
+  function companyFromProfileSignals({
+    currentCompanyCandidates = [],
+    experienceCompanyCandidates = [],
+    titleCandidates = [],
+    headlines = [],
+  } = {}) {
+    const currentCompanies = uniqueProfileCompanies(currentCompanyCandidates);
+    if (currentCompanies.length === 1) {
+      return {
+        company: currentCompanies[0],
+        source: "profile-current-company",
+        confidence: "high",
+      };
+    }
+    if (currentCompanies.length > 1) return null;
+
+    const experienceCompanies = uniqueProfileCompanies(experienceCompanyCandidates);
+    if (experienceCompanies.length === 1) {
+      return {
+        company: experienceCompanies[0],
+        source: "profile-experience",
+        confidence: "high",
+      };
+    }
+    if (experienceCompanies.length > 1) return null;
+
+    const titleCompanies = uniqueProfileCompanies(
+      titleCandidates.map(profileCompanyFromTitle).filter(Boolean)
+    );
+    if (titleCompanies.length === 1) {
+      return {
+        company: titleCompanies[0],
+        source: "profile-title",
+        confidence: "medium",
+      };
+    }
+    if (titleCompanies.length > 1) return null;
+    return companyFromHeadlines(headlines);
+  }
+
   return {
     cleanHeaderName,
+    cleanProfileCompany,
     companyFromHeadlines,
+    companyFromProfileSignals,
+    connectionNoteCharacterLimit,
     exceedsCharacterLimit,
     isConnectionNoteContext,
     isGroupLabel,
+    profileCompanyFromTitle,
+    profileNameFromTitle,
     profileSlugFromHref,
     recipientFromHeader,
     recipientFromProfile,

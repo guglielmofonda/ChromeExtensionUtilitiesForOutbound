@@ -24,7 +24,8 @@ press Send yourself.
 
 Variables: `{{first_name}}`, `{{full_name}}`, `{{handle}}` resolve automatically from
 the conversation header or the already-open LinkedIn profile header. Names are cleaned
-programmatically: emoji stripped, `| Building X`-style suffixes cut, `JANE` → `Jane`.
+programmatically: emoji stripped, `| Building X`-style suffixes cut, `JANE` → `Jane`,
+and LinkedIn unread-count prefixes or numeric UI badges rejected.
 If one can't be resolved (group chat, no header found), nothing is inserted and a
 toast explains why.
 
@@ -38,9 +39,11 @@ name variables, but a template that explicitly needs `{{handle}}` fails closed.
   `Founder @WorkOS`, `CEO of Acme Labs`, or `Building Modal`. When needed, the
   existing X-only background path briefly opens that one public profile in an
   inactive tab, reads its description metadata, then closes it.
-- On LinkedIn, it only uses a clear company signal already visible in the open
-  conversation or member-profile header. It never opens or reads another LinkedIn
-  profile in the background.
+- On LinkedIn, it only uses a clear company signal from the conversation or member
+  profile already open: the top-card company row beside the education row, one current
+  Experience entry already loaded on that page, profile-title metadata, then the
+  headline. It never opens or reads
+  another LinkedIn profile in the background.
 
 A single clear company is inserted and selected for immediate review. Generic,
 conflicting, or unavailable details fall back to a selected `[company]` token. No
@@ -64,7 +67,7 @@ and LinkedIn's User Agreement is stricter about browser add-ons.
 | `src/content.js`       | Platform-neutral runner for registered utilities           |
 | `src/dm-templates.js`  | Existing X/XChat adapter (kept isolated)                    |
 | `src/linkedin-dm-templates.js` | LinkedIn conversation and connection-note adapter  |
-| `src/linkedin-lib.js`  | Pure LinkedIn recipient/group/headline parsing              |
+| `src/linkedin-lib.js`  | Pure LinkedIn recipient and profile-signal parsing           |
 | `src/template-lib.js`  | Pure template helpers shared by both platforms and the manager |
 | `src/options.*`        | Template manager (list, editor, shortcut recorder, preview) |
 | `src/content.css`      | Shared injected styles (all selectors prefixed `ufx-`)      |

@@ -11,11 +11,28 @@
   ];
   const CONNECTION_NOTE_COMPOSER_SELECTORS = [
     'textarea#custom-message',
+    'dialog textarea',
+    '[role="dialog"] textarea',
+    '[aria-modal="true"] textarea',
     '[role="dialog"] textarea[name="message"]',
     '.artdeco-modal textarea[name="message"]',
-    '[role="dialog"] textarea[placeholder*="know each other" i]',
-    '.artdeco-modal textarea[placeholder*="know each other" i]',
+    '.artdeco-modal textarea',
+    'textarea[placeholder*="know each other" i]',
+    'textarea[aria-label*="note" i]',
+    'dialog [contenteditable]',
+    '[role="dialog"] [contenteditable]',
+    '[aria-modal="true"] [contenteditable]',
+    '[role="dialog"] [contenteditable][role="textbox"]',
+    '[aria-modal="true"] [contenteditable][role="textbox"]',
+    '.artdeco-modal [contenteditable][role="textbox"]',
+    '[contenteditable][data-placeholder*="know each other" i]',
+    '[contenteditable][aria-placeholder*="know each other" i]',
+    '[contenteditable][aria-label*="note" i]',
   ];
+  const CONNECTION_NOTE_SCOPE_SELECTOR =
+    'dialog, [role="dialog"], [aria-modal="true"], .artdeco-modal';
+  const EDITABLE_COMPOSER_SELECTOR =
+    'textarea, input:not([type]), input[type="text"], [contenteditable]';
   const CONVERSATION_ROOT_SELECTORS = [
     ".msg-overlay-conversation-bubble",
     ".msg-conversations-container__convo-contents",
@@ -47,7 +64,12 @@
   ];
   const PROFILE_NAME_SELECTORS = [
     '[data-view-name="profile-card"] [data-anonymize="person-name"]',
+    '[data-view-name="profile-card"] .text-heading-xlarge',
+    '[data-view-name="profile-card"] [role="heading"][aria-level="1"]',
     ".pv-text-details__left-panel h1",
+    ".pv-text-details__left-panel .text-heading-xlarge",
+    ".pv-top-card .text-heading-xlarge",
+    '.pv-top-card [role="heading"][aria-level="1"]',
     "h1.text-heading-xlarge",
     "h1",
   ];
@@ -56,6 +78,16 @@
     ".pv-text-details__left-panel .text-body-medium.break-words",
     ".pv-top-card .text-body-medium.break-words",
     '.pv-top-card [data-anonymize="headline"]',
+  ];
+  const PROFILE_CURRENT_COMPANY_SELECTORS = [
+    '[aria-label*="current company" i]',
+    'a[href*="/company/"]',
+    '.pv-text-details__right-panel > li:first-child:not(:only-child)',
+    '.pv-text-details__right-panel > ul > li:first-child:not(:only-child)',
+  ];
+  const PROFILE_EDUCATION_SELECTORS = [
+    '[aria-label*="education" i]',
+    'a[href*="/school/"]',
   ];
 
   let templates = [];
@@ -81,20 +113,58 @@
       el.getAttribute("aria-disabled") !== "true";
   }
 
+  function isEditableComposer(element) {
+    if (!element?.matches) return false;
+    if (element.matches('textarea, input:not([type]), input[type="text"]')) return true;
+    if (element.isContentEditable) return true;
+    const contentEditable = element.getAttribute("contenteditable");
+    return contentEditable === "" || contentEditable === "true" ||
+      contentEditable === "plaintext-only";
+  }
+
   function connectionNoteDialog(element) {
-    if (!element?.matches?.("textarea")) return null;
-    const dialog = element.closest('[role="dialog"], .artdeco-modal');
-    if (!dialog) return null;
+    if (!isEditableComposer(element)) return null;
+    const dialog = element.closest(CONNECTION_NOTE_SCOPE_SELECTOR);
     const placeholder = element.getAttribute("placeholder") ||
+      element.getAttribute("data-placeholder") ||
+      element.getAttribute("aria-placeholder") ||
       element.getAttribute("aria-label") || "";
-    const dialogText = dialog.innerText || dialog.textContent || "";
-    return UfxLinkedIn.isConnectionNoteContext({ dialogText, placeholder })
-      ? dialog
-      : null;
+    const dialogText = dialog?.innerText || dialog?.textContent || "";
+    if (UfxLinkedIn.isConnectionNoteContext({ dialogText, placeholder })) {
+      return dialog ?? element.closest("form, section") ?? element.parentElement;
+    }
+
+    // Some LinkedIn variants omit stable modal semantics. The field is already
+    // focused when a shortcut is pressed, so inspect only its nearby ancestors
+    // for the exact connection-note heading instead of scanning the whole page.
+    let ancestor = element.parentElement;
+    for (let depth = 0; ancestor && ancestor !== document.body && depth < 16; depth++) {
+      const ancestorText = ancestor.innerText || ancestor.textContent || "";
+      if (UfxLinkedIn.isConnectionNoteContext({ dialogText: ancestorText })) {
+        return ancestor;
+      }
+      ancestor = ancestor.parentElement;
+    }
+    return null;
   }
 
   function isConnectionNoteComposer(element) {
     return !!connectionNoteDialog(element);
+  }
+
+  function editableComposerFromNode(node) {
+    const element = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    if (!element?.matches) return null;
+    let editable = isEditableComposer(element)
+      ? element
+      : element.closest?.(EDITABLE_COMPOSER_SELECTOR);
+    if (!editable || !isEditableComposer(editable)) return null;
+
+    // Keyboard events can originate from a paragraph inside a contenteditable
+    // host. Return the outer editing host so insertion and selection operate on
+    // the element that owns the editor state.
+    while (editable.parentElement?.isContentEditable) editable = editable.parentElement;
+    return editable;
   }
 
   function isMessagingComposer(el) {
@@ -111,18 +181,27 @@
     return false;
   }
 
-  function composerCandidates() {
+  function composerCandidates(triggerPath = []) {
     const candidates = new Set();
     for (const selector of [...COMPOSER_SELECTORS, ...CONNECTION_NOTE_COMPOSER_SELECTORS]) {
       for (const el of document.querySelectorAll(selector)) candidates.add(el);
+    }
+    // LinkedIn changes editor attributes often. Scan editable controls, then
+    // retain only recognized messaging or invitation-note contexts below.
+    for (const element of document.querySelectorAll(EDITABLE_COMPOSER_SELECTOR)) {
+      candidates.add(element);
+    }
+    for (const node of [document.activeElement, ...triggerPath]) {
+      const editable = editableComposerFromNode(node);
+      if (editable) candidates.add(editable);
     }
     return [...candidates]
       .filter(isVisible)
       .filter((element) => isMessagingComposer(element) || isConnectionNoteComposer(element));
   }
 
-  function activeComposer() {
-    const visible = composerCandidates();
+  function activeComposer(triggerPath = []) {
+    const visible = composerCandidates(triggerPath);
     const focused = visible.find(
       (candidate) => candidate === document.activeElement || candidate.contains(document.activeElement)
     );
@@ -175,6 +254,101 @@
     return values;
   }
 
+  function hasProfileEducationSignal(element) {
+    return PROFILE_EDUCATION_SELECTORS.some((selector) =>
+      element.matches?.(selector) || element.querySelector(selector)
+    );
+  }
+
+  function compactProfileRowText(element) {
+    return (element.innerText || element.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function isAffiliationSibling(candidate, educationRow) {
+    const text = compactProfileRowText(candidate);
+    if (!text || text.length > 160 || !isVisible(candidate)) return false;
+    if (hasProfileEducationSignal(candidate) || candidate.querySelector("h1")) return false;
+
+    const rowSelector = 'li, a, button, [role="button"]';
+    const semanticPair = candidate.matches(rowSelector) && educationRow.matches(rowSelector);
+    const matchingTag = candidate.tagName === educationRow.tagName;
+    const sharedClass = [...candidate.classList].some((name) =>
+      educationRow.classList.contains(name)
+    );
+    const visualPair = !!candidate.querySelector("img, svg") &&
+      !!educationRow.querySelector("img, svg");
+    return semanticPair || matchingTag || sharedClass || visualPair;
+  }
+
+  function profileAffiliationCompanyElements(scope) {
+    const educationMarkers = new Set();
+    for (const selector of PROFILE_EDUCATION_SELECTORS) {
+      addIfMatches(educationMarkers, scope, selector);
+    }
+
+    const companyRows = new Set();
+    for (const marker of educationMarkers) {
+      let educationRow = marker;
+      while (educationRow && educationRow !== scope) {
+        const previous = educationRow.previousElementSibling;
+        if (previous && isAffiliationSibling(previous, educationRow)) {
+          companyRows.add(previous);
+          break;
+        }
+        educationRow = educationRow.parentElement;
+      }
+    }
+    return companyRows;
+  }
+
+  function profileCurrentCompanyCandidates(scope) {
+    const elements = new Set();
+    for (const selector of PROFILE_CURRENT_COMPANY_SELECTORS) {
+      addIfMatches(elements, scope, selector);
+    }
+    for (const element of profileAffiliationCompanyElements(scope)) elements.add(element);
+    const values = [];
+    for (const element of elements) {
+      if (!isVisible(element)) continue;
+      values.push(
+        element.getAttribute("aria-label") || "",
+        element.innerText || element.textContent || "",
+        element.querySelector("img[alt]")?.getAttribute("alt") || ""
+      );
+    }
+    return values.filter(Boolean);
+  }
+
+  function profileExperienceCompanyCandidates() {
+    const values = [];
+    const headings = document.querySelectorAll('h2, h3, [role="heading"]');
+    for (const heading of headings) {
+      const headingText = (heading.innerText || heading.textContent || "").trim();
+      if (!/^Experience$/i.test(headingText)) continue;
+      const section = heading.closest("section") ?? heading.parentElement;
+      if (!section) continue;
+      const rows = section.querySelectorAll('li, [data-view-name="profile-component-entity"]');
+      for (const row of rows) {
+        const rowText = row.innerText || row.textContent || "";
+        if (!/\bPresent\b/i.test(rowText)) continue;
+        const companyElements = row.querySelectorAll(
+          'a[href*="/company/"], img[alt$=" logo" i]'
+        );
+        for (const element of companyElements) {
+          values.push(
+            element.getAttribute("aria-label") || "",
+            element.getAttribute("alt") || "",
+            element.innerText || element.textContent || "",
+            element.querySelector?.("img[alt]")?.getAttribute("alt") || ""
+          );
+        }
+      }
+    }
+    return values.filter(Boolean);
+  }
+
   function profileHrefs(block) {
     const hrefs = [];
     if (block.matches?.('a[href*="/in/"]') && isVisible(block)) {
@@ -188,7 +362,19 @@
   }
 
   function profilePageScope() {
-    return document.querySelector("main") ?? document;
+    // The current profile layout keeps the company and education affiliations
+    // beside the left headline column. Never return that left column alone.
+    const leftPanel = document.querySelector(".pv-text-details__left-panel");
+    const profileCard = leftPanel?.closest(
+      '.pv-top-card, [data-view-name="profile-card"]'
+    ) ??
+      document.querySelector(".pv-top-card") ??
+      document.querySelector('main [data-view-name="profile-card"]') ??
+      document.querySelector('[data-view-name="profile-card"]');
+    if (profileCard) return profileCard;
+
+    return leftPanel?.closest("section, .artdeco-card") ??
+      document.querySelector("main") ?? document;
   }
 
   function currentProfileHrefs() {
@@ -198,11 +384,20 @@
     ].filter(Boolean);
   }
 
+  function profileTitleCandidates() {
+    return [
+      document.querySelector('meta[property="og:title"]')?.getAttribute("content"),
+      document.querySelector('meta[name="twitter:title"]')?.getAttribute("content"),
+      document.title,
+    ].filter(Boolean);
+  }
+
   function resolveProfileRecipient() {
     const scope = profilePageScope();
     return UfxLinkedIn.recipientFromProfile({
       nameCandidates: textCandidates(scope, PROFILE_NAME_SELECTORS),
       profileHrefs: currentProfileHrefs(),
+      titleCandidates: profileTitleCandidates(),
     });
   }
 
@@ -239,14 +434,40 @@
         headlines.push(...textCandidates(block, selectors));
       }
     }
-    const suggestion = UfxLinkedIn.companyFromHeadlines(headlines);
-    const visibleSource = isConnectionNote ? "visible LinkedIn profile headline" : "visible LinkedIn headline";
+    const currentCompanyCandidates = isConnectionNote
+      ? profileCurrentCompanyCandidates(scope)
+      : [];
+    const experienceCompanyCandidates = isConnectionNote
+      ? profileExperienceCompanyCandidates()
+      : [];
+    const titleCandidates = isConnectionNote ? profileTitleCandidates() : [];
+    const suggestion = isConnectionNote
+      ? UfxLinkedIn.companyFromProfileSignals({
+        currentCompanyCandidates,
+        experienceCompanyCandidates,
+        titleCandidates,
+        headlines,
+      })
+      : UfxLinkedIn.companyFromHeadlines(headlines);
+    let visibleSource = isConnectionNote
+      ? "visible LinkedIn profile headline"
+      : "visible LinkedIn headline";
+    if (suggestion?.source === "profile-current-company") {
+      visibleSource = "visible LinkedIn current company";
+    } else if (suggestion?.source === "profile-experience") {
+      visibleSource = "current LinkedIn Experience entry";
+    } else if (suggestion?.source === "profile-title") {
+      visibleSource = "LinkedIn profile title";
+    }
     return {
       status: suggestion ? "suggested" : "none",
       company: suggestion?.company ?? "",
       confidence: suggestion?.confidence ?? "",
       source: suggestion ? visibleSource : `no clear ${visibleSource}`,
       headlinesFound: headlines.filter((value) => value.trim()).length,
+      currentCompanyCandidates,
+      experienceCompanyCandidates,
+      titleCandidates,
     };
   }
 
@@ -270,12 +491,21 @@
   }
 
   function exceededCharacterLimit(composer, text) {
-    if (!isTextControl(composer) || composer.maxLength <= 0) return 0;
+    const nativeLimit = Number(composer.maxLength);
+    const noteDialog = connectionNoteDialog(composer);
+    const limit = Number.isInteger(nativeLimit) && nativeLimit > 0
+      ? nativeLimit
+      : noteDialog
+        ? UfxLinkedIn.connectionNoteCharacterLimit(
+          noteDialog.innerText || noteDialog.textContent || ""
+        )
+        : 0;
+    if (!limit) return 0;
     return UfxLinkedIn.exceedsCharacterLimit({
       currentText: composerText(composer),
       insertedText: text,
-      maxLength: composer.maxLength,
-    }) ? composer.maxLength : 0;
+      maxLength: limit,
+    }) ? limit : 0;
   }
 
   async function composerChanged(composer, before, timeoutMs = 300) {
@@ -399,10 +629,10 @@
     }, 2600);
   }
 
-  async function runTemplate(template) {
-    const composer = activeComposer();
+  async function runTemplate(template, triggerPath = []) {
+    const composer = activeComposer(triggerPath);
     if (!composer) {
-      toast("Open a LinkedIn conversation or connection note first", "error");
+      toast("Click inside a LinkedIn conversation or connection note first", "error");
       return;
     }
 
@@ -444,7 +674,7 @@
       await selectReviewToken(composer, reviewToken, !!suggestedCompany)
     );
     if (suggestedCompany && selectedForReview) {
-      toast(`Suggested “${suggestedCompany}” from ${recipient.firstName || "the recipient"}'s visible headline — review & send`);
+      toast(`Suggested “${suggestedCompany}” from ${recipient.firstName || "the recipient"}'s ${companyLookup.source} — review & send`);
     } else if (placeholders.length && selectedForReview) {
       const what = placeholders[0].replace(/^\[|\]$/g, "");
       toast(`No clear company visible for ${who || "this recipient"} — type the ${what}, then send`);
@@ -466,8 +696,11 @@
       toast("Still preparing the previous template…");
       return;
     }
+    const triggerPath = typeof event.composedPath === "function"
+      ? event.composedPath()
+      : [event.target];
     templateRunInFlight = true;
-    runTemplate(template)
+    runTemplate(template, triggerPath)
       .catch(() => toast("Couldn't insert the template", "error"))
       .finally(() => { templateRunInFlight = false; });
   }
