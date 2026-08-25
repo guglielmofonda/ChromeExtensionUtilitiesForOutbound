@@ -1,12 +1,18 @@
 {
   "manifest_version": 3,
   "name": "DM Templates for X & LinkedIn",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "description": "Human-reviewed DM templates for X and LinkedIn.",
   "permissions": ["storage"],
   "host_permissions": ["https://x.com/*", "https://www.linkedin.com/*"],
   "background": {
     "service_worker": "src/background.js"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
   },
   "content_scripts": [
     {
@@ -32,6 +38,10 @@
     "open_in_tab": true
   },
   "action": {
-    "default_title": "DM Templates for X & LinkedIn — open template manager"
+    "default_title": "DM Templates for X & LinkedIn — open template manager",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
   }
 }

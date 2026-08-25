@@ -3,8 +3,9 @@ window.__stubStore = {
   dmTemplates: {
     version: 1,
     templates: [
-      { id: "starter-latest-company", name: "Latest + company", body: "hey {{first_name}}, what is the latest with {{company}}? are you a solo founder?", shortcut: { code: "Digit1", alt: true, ctrl: false, meta: false, shift: false }, createdAt: 1, updatedAt: 1 },
-      { id: "starter-working-on", name: "What are you working on", body: "hey {{first_name}}, what are you working on these days? are you a solo founder?", shortcut: { code: "Digit2", alt: true, ctrl: false, meta: false, shift: false }, createdAt: 2, updatedAt: 2 },
+      { id: "starter-latest-company", name: "Latest + company", body: "hey {{first_name}}, what is the latest with {{company}}? are you a solo founder?", shortcut: { code: "Digit1", alt: true, ctrl: false, meta: false, shift: false }, platforms: ["x", "linkedin"], createdAt: 1, updatedAt: 1 },
+      { id: "starter-working-on", name: "What are you working on", body: "hey {{first_name}}, what are you working on these days? are you a solo founder?", shortcut: { code: "Digit2", alt: true, ctrl: false, meta: false, shift: false }, platforms: ["x", "linkedin"], createdAt: 2, updatedAt: 2 },
+      { id: "starter-founder-dinner", name: "Founder dinner invite", body: "hey {{first_name}}, we're hosting a small founder dinner next week. would you like to join us?", shortcut: { code: "Digit3", alt: true, ctrl: false, meta: false, shift: false }, platforms: ["x", "linkedin"], createdAt: 3, updatedAt: 3 },
     ],
   },
 };

@@ -3,9 +3,15 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-function loadBackground({ tabs: tabOverrides = {}, DateImpl = Date, setTimeoutImpl = setTimeout } = {}) {
+function loadBackground({
+  tabs: tabOverrides = {},
+  DateImpl = Date,
+  setTimeoutImpl = setTimeout,
+  storageValue = {},
+} = {}) {
   let messageListener = null;
-  const calls = { create: [], sendMessage: [], remove: [] };
+  let installListener = null;
+  const calls = { create: [], sendMessage: [], remove: [], storageSet: [] };
   const tabs = {
     async create(properties) {
       calls.create.push(properties);
@@ -23,11 +29,16 @@ function loadBackground({ tabs: tabOverrides = {}, DateImpl = Date, setTimeoutIm
   const chrome = {
     action: { onClicked: { addListener() {} } },
     runtime: {
-      onInstalled: { addListener() {} },
+      onInstalled: { addListener(listener) { installListener = listener; } },
       onMessage: { addListener(listener) { messageListener = listener; } },
       openOptionsPage() {},
     },
-    storage: { sync: { get: async () => ({}), set: async () => {} } },
+    storage: {
+      sync: {
+        get: async () => storageValue,
+        set: async (value) => { calls.storageSet.push(value); },
+      },
+    },
     tabs,
   };
   vm.runInNewContext(fs.readFileSync(require.resolve("../src/background.js"), "utf8"), {
@@ -35,7 +46,7 @@ function loadBackground({ tabs: tabOverrides = {}, DateImpl = Date, setTimeoutIm
     Date: DateImpl,
     setTimeout: setTimeoutImpl,
   });
-  return { calls, listener: messageListener };
+  return { calls, listener: messageListener, installListener };
 }
 
 function send(listener, message, sender = { url: "https://x.com/i/chat/111-222" }) {
@@ -120,4 +131,44 @@ test("background profile lookup times out without leaking browser error details"
     { ok: false, error: "profile-tab-timeout" }
   );
   assert.deepEqual(calls.remove, [42]);
+});
+
+test("a fresh install seeds three platform-aware starter templates", async () => {
+  const { calls, installListener } = loadBackground();
+  await installListener();
+
+  const written = JSON.parse(JSON.stringify(calls.storageSet));
+  assert.equal(written.length, 1);
+  assert.deepEqual(
+    written[0].dmTemplates.templates.map((template) => ({
+      id: template.id,
+      platforms: template.platforms,
+      shortcut: template.shortcut.code,
+    })),
+    [
+      { id: "starter-latest-company", platforms: ["x", "linkedin"], shortcut: "Digit1" },
+      { id: "starter-working-on", platforms: ["x", "linkedin"], shortcut: "Digit2" },
+      { id: "starter-founder-dinner", platforms: ["x", "linkedin"], shortcut: "Digit3" },
+    ]
+  );
+});
+
+test("install updates never replace a customized template library", async () => {
+  const storageValue = {
+    dmTemplates: {
+      version: 1,
+      templates: [
+        {
+          id: "my-template",
+          name: "My template",
+          body: "A message I wrote",
+          shortcut: null,
+        },
+      ],
+    },
+  };
+  const { calls, installListener } = loadBackground({ storageValue });
+  await installListener();
+
+  assert.deepEqual(calls.storageSet, []);
 });

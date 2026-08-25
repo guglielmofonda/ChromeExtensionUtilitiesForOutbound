@@ -629,7 +629,10 @@
   function onKeydown(event) {
     if (event.repeat) return;
     const template = templates.find(
-      (t) => t.shortcut && UfxTemplates.eventMatchesShortcut(event, t.shortcut)
+      (t) =>
+        UfxTemplates.templateSupportsPlatform(t, "x") &&
+        t.shortcut &&
+        UfxTemplates.eventMatchesShortcut(event, t.shortcut)
     );
     if (!template) return;
     event.preventDefault();
@@ -659,7 +662,9 @@
       urlSaysGroup: urlSaysGroup(),
       recipient: composer ? resolveRecipient(composer) : null,
       companyLookup: lastCompanyLookup,
-      templates: templates.map((t) => ({ name: t.name, shortcut: UfxTemplates.formatShortcut(t.shortcut) })),
+      templates: templates
+        .filter((t) => UfxTemplates.templateSupportsPlatform(t, "x"))
+        .map((t) => ({ name: t.name, shortcut: UfxTemplates.formatShortcut(t.shortcut) })),
     };
     console.table ? console.log(info) : console.log(JSON.stringify(info, null, 2));
     return info;

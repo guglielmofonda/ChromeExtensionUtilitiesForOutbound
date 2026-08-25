@@ -2,84 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>DM Templates for X &amp; LinkedIn</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DM Templates visual harness</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="../src/options.css" />
   </head>
   <body>
-    <div class="app">
-      <header class="app-header">
-        <div>
-          <h1>DM templates</h1>
-          <p class="subtitle">
-            Press a template's shortcut inside an X or LinkedIn conversation, or a LinkedIn
-            connection note, to pre-fill the message. You always review and hit Send yourself.
-          </p>
-        </div>
-        <span class="save-state" id="saveState" hidden>Saved</span>
-      </header>
-
-      <div class="layout">
-        <aside class="sidebar">
-          <button class="btn btn-primary" id="newTemplate">New template</button>
-          <ul class="template-list" id="templateList"></ul>
-        </aside>
-
-        <section class="editor" id="editor" hidden>
-          <div class="field-row">
-            <div class="field grow">
-              <label for="tplName">Name</label>
-              <input type="text" id="tplName" placeholder="e.g. Event invite" autocomplete="off" />
-            </div>
-            <div class="field">
-              <label>Shortcut</label>
-              <button class="shortcut-btn" id="shortcutBtn" title="Click, then press a key combo. Backspace clears, Esc cancels.">
-                Set shortcut
-              </button>
-            </div>
-          </div>
-          <p class="hint hint-warn" id="shortcutWarning" hidden></p>
-
-          <div class="field">
-            <label for="tplBody">Message</label>
-            <div class="chips" id="variableChips"></div>
-            <textarea id="tplBody" rows="7" placeholder="Hey {{first_name}}! …"></textarea>
-          </div>
-
-          <div class="field">
-            <label>Preview <span class="preview-meta">with sample recipient Jane Doe</span></label>
-            <div class="preview" id="preview"></div>
-          </div>
-
-          <div class="editor-footer">
-            <button class="btn btn-danger" id="deleteTemplate">Delete template</button>
-          </div>
-        </section>
-
-        <section class="editor empty-state" id="emptyState">
-          <h2>No template selected</h2>
-          <p>Create a template, give it a shortcut, then use it in a conversation or LinkedIn connection note.</p>
-        </section>
-      </div>
-
-      <section class="safety">
-        <h2>Keeping the account safe</h2>
-        <p class="safety-lede">
-          This tool only pre-fills the open composer or connection note. It never sends, schedules, queues, or builds
-          contact lists. You remain responsible for every message you review and send:
-        </p>
-        <ul>
-          <li><strong>Make every message relevant.</strong> Personalize beyond a first name; repeated or unwanted outreach can trigger spam controls on either platform.</li>
-          <li><strong>Use it at a human pace.</strong> If either service warns, limits, or restricts the account, stop instead of retrying.</li>
-          <li><strong>Keep first contact low-pressure.</strong> Prefer warm context and avoid repetitive links or follow-up barrages.</li>
-          <li><strong>LinkedIn is stricter about extensions.</strong> Its User Agreement restricts add-ons that scrape, automate, or modify the service; this tool minimizes automation but cannot eliminate policy risk.</li>
-          <li><strong>Never automate the send.</strong> This extension has no auto-send, queue, bulk-message, or conversation-iteration path.</li>
-        </ul>
-        <p class="safety-more">Full policy review with sources: <code>SAFETY.md</code> in the repo.</p>
-      </section>
-    </div>
-
-    <script src="../test/chrome-stub.js"></script>
+    <p class="harness-loading">Loading the template manager…</p>
+    <script src="chrome-stub.js"></script>
     <script src="../src/template-lib.js"></script>
-    <script src="../src/options.js"></script>
+    <script src="options-harness.js"></script>
   </body>
 </html>
