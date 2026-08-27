@@ -186,6 +186,7 @@ function showNotice(message, kind = "info", duration = 3200) {
   clearTimeout(noticeTimer);
   appNoticeEl.textContent = message;
   appNoticeEl.className = `notice${kind === "info" ? "" : ` is-${kind}`}`;
+  appNoticeEl.setAttribute("role", kind === "error" ? "alert" : "status");
   appNoticeEl.hidden = false;
   if (duration > 0) {
     noticeTimer = setTimeout(() => {
@@ -744,19 +745,36 @@ window.addEventListener("keydown", (event) => {
 });
 
 const mobileActionsBtn = $("mobileActions");
+
+function setMobileActionsOpen(open) {
+  const actions = mobileActionsBtn.closest(".topbar-actions");
+  actions.classList.toggle("actions-open", open);
+  mobileActionsBtn.setAttribute("aria-expanded", String(open));
+  mobileActionsBtn.setAttribute(
+    "aria-label",
+    `${open ? "Hide" : "Show"} import and export actions`
+  );
+}
+
 mobileActionsBtn.addEventListener("click", () => {
   const actions = mobileActionsBtn.closest(".topbar-actions");
   const open = !actions.classList.contains("actions-open");
-  actions.classList.toggle("actions-open", open);
-  mobileActionsBtn.setAttribute("aria-expanded", String(open));
+  setMobileActionsOpen(open);
 });
+
+for (const action of document.querySelectorAll(".header-action")) {
+  action.addEventListener("click", () => setMobileActionsOpen(false));
+}
 
 document.addEventListener("click", (event) => {
   const actions = mobileActionsBtn.closest(".topbar-actions");
   if (!actions.contains(event.target)) {
-    actions.classList.remove("actions-open");
-    mobileActionsBtn.setAttribute("aria-expanded", "false");
+    setMobileActionsOpen(false);
   }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setMobileActionsOpen(false);
 });
 
 // ---------- backup and restore ----------

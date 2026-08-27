@@ -10,10 +10,15 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true">DM</span>
+          <span class="brand-mark" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24">
+              <path d="M5 5.5h14v10H10l-5 3v-13Z" />
+              <path d="M8.5 9h7M8.5 12h5" />
+            </svg>
+          </span>
           <div>
             <h1>DM Templates</h1>
-            <p>Thoughtful outreach, one conversation at a time.</p>
+            <p>Reusable messages for X and LinkedIn</p>
           </div>
         </div>
 
@@ -45,13 +50,21 @@
         </div>
       </header>
 
-      <div class="notice" id="appNotice" role="status" aria-live="polite" hidden></div>
+      <div class="notice" id="appNotice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
       <main class="workspace">
         <aside class="library" aria-labelledby="libraryTitle">
           <div class="section-heading library-heading">
-            <h2 id="libraryTitle">Templates</h2>
-            <span class="template-count" id="templateCount">0</span>
+            <div class="library-title">
+              <h2 id="libraryTitle">Templates</h2>
+              <span class="template-count" id="templateCount">0</span>
+            </div>
+            <button class="button button-primary new-template" id="newTemplate" type="button">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              New template
+            </button>
           </div>
 
           <label class="search-control" for="templateSearch">
@@ -62,13 +75,6 @@
             <input type="search" id="templateSearch" placeholder="Search templates" aria-label="Search templates" autocomplete="off" />
             <kbd id="searchShortcut">⌘K</kbd>
           </label>
-
-          <button class="button button-primary new-template" id="newTemplate" type="button">
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            New template
-          </button>
 
           <ul class="template-list" id="templateList"></ul>
           <div class="library-empty" id="libraryEmpty" hidden>
@@ -168,8 +174,8 @@
               <path d="M12 11v6m0-10h.01" />
             </svg>
             <div>
-              <strong>Prefills only. You review and send.</strong>
-              <span>Stop and review if a platform warns or limits you.</span>
+              <strong>You stay in control.</strong>
+              <span>The extension fills the draft. Review it, then send it yourself.</span>
             </div>
           </div>
         </section>
@@ -220,7 +226,7 @@
 
       <footer class="trust-footer">
         <div>
-          <strong>Human in the loop by design.</strong>
+          <strong>You always send the message.</strong>
           <span>No auto-send, queues, contact lists, or background outreach.</span>
         </div>
         <a href="../SAFETY.md" target="_blank" rel="noreferrer">Read the policy notes</a>
