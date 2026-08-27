@@ -5,7 +5,23 @@ const fs = require("node:fs");
 const manifest = JSON.parse(fs.readFileSync(require.resolve("../manifest.json"), "utf8"));
 
 test("identifies the current unpacked extension build", () => {
-  assert.equal(manifest.version, "0.4.6");
+  assert.equal(manifest.version, "0.5.0");
+});
+
+test("ships a complete toolbar and extension icon set", () => {
+  assert.deepEqual(manifest.icons, {
+    16: "icons/icon-16.png",
+    32: "icons/icon-32.png",
+    48: "icons/icon-48.png",
+    128: "icons/icon-128.png",
+  });
+  assert.deepEqual(manifest.action.default_icon, {
+    16: "icons/icon-16.png",
+    32: "icons/icon-32.png",
+  });
+  for (const path of Object.values(manifest.icons)) {
+    assert.ok(fs.existsSync(require.resolve(`../${path}`)), `${path} should exist`);
+  }
 });
 
 test("keeps the existing X content-script stack unchanged", () => {
@@ -47,6 +63,18 @@ test("LinkedIn adapter has no network, profile-tab, or send action", () => {
   assert.doesNotMatch(source, /\.click\s*\(|requestSubmit\s*\(|\.submit\s*\(/);
   assert.match(source, /event\.composedPath/);
   assert.match(source, /EDITABLE_COMPOSER_SELECTOR/);
+  assert.match(source, /templateSupportsPlatform\(candidate, "linkedin"\)/);
+});
+
+test("each platform adapter ignores templates targeted at the other platform", () => {
+  const xSource = fs.readFileSync(require.resolve("../src/dm-templates.js"), "utf8");
+  const linkedinSource = fs.readFileSync(
+    require.resolve("../src/linkedin-dm-templates.js"),
+    "utf8"
+  );
+
+  assert.match(xSource, /templateSupportsPlatform\(t, "x"\)/);
+  assert.match(linkedinSource, /templateSupportsPlatform\(candidate, "linkedin"\)/);
 });
 
 test("LinkedIn company lookup includes the full profile card and its affiliation rows", () => {

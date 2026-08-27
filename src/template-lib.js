@@ -22,6 +22,8 @@ const UfxTemplates = (() => {
   ];
   const KNOWN_KEYS = new Set(VARIABLES.map((v) => v.key));
   const byKey = (key) => VARIABLES.find((v) => v.key === key);
+  const PLATFORMS = ["x", "linkedin"];
+  const VARIABLE_PATTERN = /\{\{\s*([a-zA-Z_]+)\s*\}\}|\{\s*([a-zA-Z_]+)\s*\}/g;
 
   // Emoji, pictographs, ZWJ sequences, variation selectors, skin-tone modifiers.
   const EMOJI_RE = /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}‍️⃣]/gu;
@@ -184,6 +186,45 @@ const UfxTemplates = (() => {
     return { text, missing, placeholders };
   }
 
+  // Platform targeting was added after the original storage shape shipped.
+  // Missing or malformed values therefore mean "both" for backward compatibility.
+  function normalizePlatforms(platforms) {
+    if (!Array.isArray(platforms)) return [...PLATFORMS];
+    const normalized = PLATFORMS.filter((platform) => platforms.includes(platform));
+    return normalized.length ? normalized : [...PLATFORMS];
+  }
+
+  function templateSupportsPlatform(template, platform) {
+    return PLATFORMS.includes(platform) && normalizePlatforms(template?.platforms).includes(platform);
+  }
+
+  function templatesSharePlatform(first, second) {
+    const secondPlatforms = new Set(normalizePlatforms(second?.platforms));
+    return normalizePlatforms(first?.platforms).some((platform) => secondPlatforms.has(platform));
+  }
+
+  function analyzeTemplate(body) {
+    const text = String(body || "");
+    const variables = [];
+    const unknown = [];
+
+    for (const match of text.matchAll(VARIABLE_PATTERN)) {
+      const key = match[1] || match[2];
+      const isDouble = !!match[1];
+      if (!isDouble && !KNOWN_KEYS.has(key)) continue;
+      const target = KNOWN_KEYS.has(key) ? variables : unknown;
+      if (!target.includes(key)) target.push(key);
+    }
+
+    return {
+      variables,
+      unknown,
+      usesCompany: variables.includes("company"),
+      hasLink: /(?:https?:\/\/|www\.)\S+/i.test(text),
+      characterCount: text.length,
+    };
+  }
+
   const CODE_LABELS = {
     Comma: ",", Period: ".", Slash: "/", Backslash: "\\", Semicolon: ";",
     Quote: "'", BracketLeft: "[", BracketRight: "]", Backquote: "`",
@@ -245,7 +286,8 @@ const UfxTemplates = (() => {
   const SAMPLE_RECIPIENT = { fullName: "Jane Doe", firstName: "Jane", handle: "janedoe" };
 
   return {
-    VARIABLES, cleanDisplayName, firstNameFrom, inferCompanyFromBio, substitute,
+    VARIABLES, PLATFORMS, cleanDisplayName, firstNameFrom, inferCompanyFromBio, substitute,
+    normalizePlatforms, templateSupportsPlatform, templatesSharePlatform, analyzeTemplate,
     formatShortcut, eventMatchesShortcut, shortcutFromEvent,
     isReservedShortcut, SAMPLE_RECIPIENT, IS_MAC,
   };

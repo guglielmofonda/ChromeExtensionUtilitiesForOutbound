@@ -76,14 +76,28 @@ const STARTER_TEMPLATES = [
     name: "Latest + company",
     body: "hey {{first_name}}, what is the latest with {{company}}? are you a solo founder?",
     shortcut: { code: "Digit1", alt: true, ctrl: false, meta: false, shift: false },
+    platforms: ["x", "linkedin"],
   },
   {
     id: "starter-working-on",
     name: "What are you working on",
     body: "hey {{first_name}}, what are you working on these days? are you a solo founder?",
     shortcut: { code: "Digit2", alt: true, ctrl: false, meta: false, shift: false },
+    platforms: ["x", "linkedin"],
+  },
+  {
+    id: "starter-founder-dinner",
+    name: "Founder dinner invite",
+    body: "hey {{first_name}}, we're hosting a small founder dinner next week. would you like to join us?",
+    shortcut: { code: "Digit3", alt: true, ctrl: false, meta: false, shift: false },
+    platforms: ["x", "linkedin"],
   },
 ];
+
+const PREVIOUS_STARTER_BODIES = new Map([
+  ["starter-latest-company", "hey {{first_name}}, what is the latest with {{company}}? are you a solo founder?"],
+  ["starter-working-on", "hey {{first_name}}, what are you working on these days? are you a solo founder?"],
+]);
 
 // Bodies of the v1 placeholder starters, so an update can tell "still the demo
 // content, safe to replace" apart from "user already customized — hands off".
@@ -105,7 +119,12 @@ chrome.runtime.onInstalled.addListener(async () => {
   const untouchedV1 =
     dmTemplates?.templates?.length > 0 &&
     dmTemplates.templates.every((t) => V1_STARTER_BODIES.has(t.body));
-  if (!dmTemplates || untouchedV1) {
+  const untouchedPreviousStarters =
+    dmTemplates?.templates?.length === PREVIOUS_STARTER_BODIES.size &&
+    dmTemplates.templates.every(
+      (template) => PREVIOUS_STARTER_BODIES.get(template.id) === template.body
+    );
+  if (!dmTemplates || untouchedV1 || untouchedPreviousStarters) {
     await chrome.storage.sync.set({ dmTemplates: seededStore() });
   }
 });

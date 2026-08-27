@@ -687,7 +687,10 @@
   function onKeydown(event) {
     if (event.repeat) return;
     const template = templates.find(
-      (candidate) => candidate.shortcut && UfxTemplates.eventMatchesShortcut(event, candidate.shortcut)
+      (candidate) =>
+        UfxTemplates.templateSupportsPlatform(candidate, "linkedin") &&
+        candidate.shortcut &&
+        UfxTemplates.eventMatchesShortcut(event, candidate.shortcut)
     );
     if (!template) return;
     event.preventDefault();
@@ -724,10 +727,12 @@
       pathname: location.pathname,
       recipient: composer ? resolveRecipient(composer) : null,
       lastResolution,
-      templates: templates.map((template) => ({
-        name: template.name,
-        shortcut: UfxTemplates.formatShortcut(template.shortcut),
-      })),
+      templates: templates
+        .filter((template) => UfxTemplates.templateSupportsPlatform(template, "linkedin"))
+        .map((template) => ({
+          name: template.name,
+          shortcut: UfxTemplates.formatShortcut(template.shortcut),
+        })),
     };
     console.log(info);
     return info;

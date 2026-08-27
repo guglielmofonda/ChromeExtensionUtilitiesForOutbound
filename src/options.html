@@ -2,81 +2,251 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DM Templates for X &amp; LinkedIn</title>
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
-    <div class="app">
-      <header class="app-header">
-        <div>
-          <h1>DM templates</h1>
-          <p class="subtitle">
-            Press a template's shortcut inside an X or LinkedIn conversation, or a LinkedIn
-            connection note, to pre-fill the message. You always review and hit Send yourself.
-          </p>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 24 24">
+              <path d="M5 5.5h14v10H10l-5 3v-13Z" />
+              <path d="M8.5 9h7M8.5 12h5" />
+            </svg>
+          </span>
+          <div>
+            <h1>DM Templates</h1>
+            <p>Reusable messages for X and LinkedIn</p>
+          </div>
         </div>
-        <span class="save-state" id="saveState" hidden>Saved</span>
+
+        <div class="topbar-actions">
+          <span class="save-state" id="saveState" role="status" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="saveStateText">Saved</span>
+          </span>
+          <button class="button button-secondary header-action" id="importTemplates" type="button">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" />
+            </svg>
+            Import
+          </button>
+          <button class="button button-secondary header-action" id="exportTemplates" type="button">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 16V4m0 0 4 4m-4-4L8 8M5 14v6h14v-6" />
+            </svg>
+            Export
+          </button>
+          <button class="icon-button mobile-actions" id="mobileActions" type="button" aria-label="Show import and export actions" aria-expanded="false">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="5" r="1.5" class="icon-fill" />
+              <circle cx="12" cy="12" r="1.5" class="icon-fill" />
+              <circle cx="12" cy="19" r="1.5" class="icon-fill" />
+            </svg>
+          </button>
+          <input type="file" id="importFile" accept="application/json,.json" hidden />
+        </div>
       </header>
 
-      <div class="layout">
-        <aside class="sidebar">
-          <button class="btn btn-primary" id="newTemplate">New template</button>
+      <div class="notice" id="appNotice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
+      <main class="workspace">
+        <aside class="library" aria-labelledby="libraryTitle">
+          <div class="section-heading library-heading">
+            <div class="library-title">
+              <h2 id="libraryTitle">Templates</h2>
+              <span class="template-count" id="templateCount">0</span>
+            </div>
+            <button class="button button-primary new-template" id="newTemplate" type="button">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              New template
+            </button>
+          </div>
+
+          <label class="search-control" for="templateSearch">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m15.5 15.5 5 5" />
+            </svg>
+            <input type="search" id="templateSearch" placeholder="Search templates" aria-label="Search templates" autocomplete="off" />
+            <kbd id="searchShortcut">⌘K</kbd>
+          </label>
+
           <ul class="template-list" id="templateList"></ul>
+          <div class="library-empty" id="libraryEmpty" hidden>
+            <p>No templates match that search.</p>
+            <button class="text-button" id="clearSearch" type="button">Clear search</button>
+          </div>
         </aside>
 
-        <section class="editor" id="editor" hidden>
-          <div class="field-row">
-            <div class="field grow">
-              <label for="tplName">Name</label>
-              <input type="text" id="tplName" placeholder="e.g. Event invite" autocomplete="off" />
+        <section class="editor surface" id="editor" aria-labelledby="editorTitle" hidden>
+          <header class="editor-header">
+            <div>
+              <h2 id="editorTitle">Template</h2>
+              <p class="editor-status" id="templateStatus"></p>
             </div>
-            <div class="field">
-              <label>Shortcut</label>
-              <button class="shortcut-btn" id="shortcutBtn" title="Click, then press a key combo. Backspace clears, Esc cancels.">
-                Set shortcut
+            <div class="editor-actions">
+              <button class="button button-secondary compact-button" id="duplicateTemplate" type="button">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="8" y="8" width="11" height="11" rx="1.5" />
+                  <path d="M16 8V5H5v11h3" />
+                </svg>
+                <span>Duplicate</span>
+              </button>
+              <button class="button button-danger compact-button" id="deleteTemplate" type="button">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M9 4h6l1 3H8l1-3Zm-2 3 1 13h8l1-13M10 11v5m4-5v5" />
+                </svg>
+                <span id="deleteTemplateLabel">Delete</span>
               </button>
             </div>
-          </div>
-          <p class="hint hint-warn" id="shortcutWarning" hidden></p>
+          </header>
 
-          <div class="field">
-            <label for="tplBody">Message</label>
-            <div class="chips" id="variableChips"></div>
-            <textarea id="tplBody" rows="7" placeholder="Hey {{first_name}}! …"></textarea>
+          <div class="editor-fields">
+            <div class="field field-name">
+              <label for="tplName">Template name</label>
+              <input type="text" id="tplName" placeholder="e.g. Founder dinner invite" autocomplete="off" maxlength="80" />
+            </div>
+
+            <div class="field field-shortcut">
+              <span class="field-label">Shortcut</span>
+              <button class="shortcut-button" id="shortcutBtn" type="button" title="Click, then press a key combination. Backspace clears, Escape cancels.">
+                Set shortcut
+              </button>
+              <p class="field-hint">Press keys to change</p>
+            </div>
           </div>
 
-          <div class="field">
-            <label>Preview <span class="preview-meta">with sample recipient Jane Doe</span></label>
-            <div class="preview" id="preview"></div>
+          <p class="inline-alert" id="shortcutWarning" role="status" hidden></p>
+
+          <fieldset class="field platform-fieldset">
+            <legend>Works on</legend>
+            <div class="platform-options" id="platformOptions">
+              <label class="platform-option">
+                <input type="checkbox" id="platformX" value="x" />
+                <span class="platform-logo platform-logo-x" aria-hidden="true">X</span>
+                <span>X</span>
+                <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3 3 7-7" /></svg>
+              </label>
+              <label class="platform-option">
+                <input type="checkbox" id="platformLinkedIn" value="linkedin" />
+                <span class="platform-logo platform-logo-linkedin" aria-hidden="true">in</span>
+                <span>LinkedIn</span>
+                <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3 3 7-7" /></svg>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="field composer-field">
+            <div class="label-row">
+              <label for="tplBody">Message</label>
+              <span class="character-count" id="characterCount">0 characters</span>
+            </div>
+            <textarea id="tplBody" rows="7" placeholder="hey {{first_name}}, …"></textarea>
           </div>
 
-          <div class="editor-footer">
-            <button class="btn btn-danger" id="deleteTemplate">Delete template</button>
+          <div class="variable-section">
+            <p class="field-label">Insert variable</p>
+            <div class="variable-buttons" id="variableChips"></div>
+            <div class="variable-help">
+              <p>
+                <span class="help-key help-key-auto">Automatic</span>
+                <span>Filled from the open recipient when available:</span>
+                <code>{{first_name}}</code>
+                <code>{{full_name}}</code>
+                <code>{{handle}}</code>
+              </p>
+              <p>
+                <span class="help-key help-key-review">Review needed</span>
+                <span>A clear company can be suggested; otherwise you type over:</span>
+                <code>{{company}}</code>
+              </p>
+            </div>
+          </div>
+
+          <div class="inline-trust">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v6m0-10h.01" />
+            </svg>
+            <div>
+              <strong>You stay in control.</strong>
+              <span>The extension fills the draft. Review it, then send it yourself.</span>
+            </div>
           </div>
         </section>
 
-        <section class="editor empty-state" id="emptyState">
-          <h2>No template selected</h2>
-          <p>Create a template, give it a shortcut, then use it in a conversation or LinkedIn connection note.</p>
+        <section class="editor-empty surface" id="emptyState">
+          <span class="empty-mark" aria-hidden="true">DM</span>
+          <h2>Start with one useful message</h2>
+          <p>Create a template, assign a shortcut, and use it in one open X or LinkedIn conversation.</p>
+          <button class="button button-primary" id="emptyNewTemplate" type="button">Create a template</button>
         </section>
-      </div>
 
-      <section class="safety">
-        <h2>Keeping the account safe</h2>
-        <p class="safety-lede">
-          This tool only pre-fills the open composer or connection note. It never sends, schedules, queues, or builds
-          contact lists. You remain responsible for every message you review and send:
-        </p>
-        <ul>
-          <li><strong>Make every message relevant.</strong> Personalize beyond a first name; repeated or unwanted outreach can trigger spam controls on either platform.</li>
-          <li><strong>Use it at a human pace.</strong> If either service warns, limits, or restricts the account, stop instead of retrying.</li>
-          <li><strong>Keep first contact low-pressure.</strong> Prefer warm context and avoid repetitive links or follow-up barrages.</li>
-          <li><strong>LinkedIn is stricter about extensions.</strong> Its User Agreement restricts add-ons that scrape, automate, or modify the service; this tool minimizes automation but cannot eliminate policy risk.</li>
-          <li><strong>Never automate the send.</strong> This extension has no auto-send, queue, bulk-message, or conversation-iteration path.</li>
-        </ul>
-        <p class="safety-more">Full policy review with sources: <code>SAFETY.md</code> in the repo.</p>
-      </section>
+        <aside class="preview-pane" id="previewPane" aria-labelledby="previewTitle" hidden>
+          <section class="preview-section">
+            <div class="section-heading">
+              <h2 id="previewTitle">Live preview</h2>
+              <span class="preview-edit-label">Sample recipient</span>
+            </div>
+
+            <div class="sample-fields">
+              <div class="sample-field">
+                <label for="sampleFullName">Full name</label>
+                <input type="text" id="sampleFullName" value="Jane Doe" autocomplete="off" />
+              </div>
+              <div class="sample-field">
+                <label for="sampleHandle">Handle</label>
+                <div class="handle-input">
+                  <span aria-hidden="true">@</span>
+                  <input type="text" id="sampleHandle" value="janedoe" autocomplete="off" />
+                </div>
+              </div>
+              <div class="sample-field">
+                <label for="sampleCompany">Company</label>
+                <input type="text" id="sampleCompany" value="Acme" autocomplete="off" />
+              </div>
+            </div>
+
+            <div class="preview-context" id="previewContext"></div>
+            <div class="message-preview" id="preview"></div>
+            <p class="preview-note">Sample values only. Always review the real conversation.</p>
+          </section>
+
+          <section class="readiness-section">
+            <h2>Before you use it</h2>
+            <ul class="readiness-list" id="readinessList"></ul>
+          </section>
+        </aside>
+      </main>
+
+      <footer class="trust-footer">
+        <div>
+          <strong>You always send the message.</strong>
+          <span>No auto-send, queues, contact lists, or background outreach.</span>
+        </div>
+        <a href="../SAFETY.md" target="_blank" rel="noreferrer">Read the policy notes</a>
+      </footer>
     </div>
+
+    <dialog class="import-dialog" id="importDialog" aria-labelledby="importTitle">
+      <form method="dialog">
+        <div class="dialog-mark" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" /></svg>
+        </div>
+        <h2 id="importTitle">Replace your template library?</h2>
+        <p id="importSummary">The selected backup contains templates.</p>
+        <p class="dialog-warning">Your current templates will be replaced. Export a backup first if you want to keep them.</p>
+        <div class="dialog-actions">
+          <button class="button button-secondary" value="cancel">Cancel</button>
+          <button class="button button-primary" id="confirmImport" type="button">Replace templates</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="template-lib.js"></script>
     <script src="options.js"></script>
