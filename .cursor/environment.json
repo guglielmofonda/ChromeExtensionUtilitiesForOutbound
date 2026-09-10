@@ -1,0 +1,18 @@
+{
+  "name": "DM Templates for X & LinkedIn",
+  "user": "ubuntu",
+  "install": "for file in src/*.js test/*.js; do node --check \"$file\"; done",
+  "terminals": [
+    {
+      "name": "harness-server",
+      "command": "python3 -m http.server 4173"
+    }
+  ],
+  "ports": [
+    {
+      "name": "harness-server",
+      "port": 4173
+    }
+  ],
+  "chromeExecutablePath": "/usr/local/bin/google-chrome"
+}
