@@ -1,6 +1,34 @@
+# Dependencies / build output
 node_modules/
 dist/
+build/
+out/
+coverage/
+.nyc_output/
+
+# Packaged extension artifacts
 *.zip
-.DS_Store
+*.crx
+*.pem
+
+# Environment / secrets (none required by this extension today)
 .env
-.env.local
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# Local agent / machine config
+.cursor/
+.claude/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

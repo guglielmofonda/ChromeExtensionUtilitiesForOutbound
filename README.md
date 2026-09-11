@@ -2,6 +2,8 @@
 
 A Manifest V3 Chrome extension for thoughtful, shortcut-driven messages. It prepares one draft in the conversation you already opened, then leaves the review and Send action to you.
 
+No build step. No runtime dependencies. No hosted backend. Templates sync through `chrome.storage.sync` in your browser.
+
 ![The DM Templates workbench showing the template library, editor, live preview, and readiness checks](docs/template-manager.png)
 
 ## Why this exists
@@ -45,9 +47,18 @@ Company resolution is intentionally conservative:
 
 Ambiguous or missing data never becomes a guess. Automatic variables stop insertion with an explanation; `{{company}}` falls back to a selected value that must be reviewed.
 
+## Requirements
+
+- Google Chrome or another Chromium browser that supports Manifest V3 extensions
+- [Node.js](https://nodejs.org/) 18+ only if you want to run the local test suite
+
+## Environment variables
+
+None. The extension does not read `.env` files or call external APIs with credentials. Do not commit secrets into this repository.
+
 ## Install locally
 
-1. Download or clone this repository.
+1. Clone this repository.
 2. Open `chrome://extensions`.
 3. Enable **Developer mode**.
 4. Choose **Load unpacked** and select the repository folder.
@@ -119,3 +130,9 @@ open http://127.0.0.1:4173/test/options-harness.html
 The X, LinkedIn message, LinkedIn connection-note, and Draft.js harnesses exercise their production script stacks against local DOM fixtures. None of them can trigger Send.
 
 For live selector debugging, switch DevTools to the extension's JavaScript context and run `__ufxDmDebug()` on X or `__ufxLinkedInDmDebug()` on LinkedIn. Both sites change their DOM regularly, so a passing local harness is not proof that the current live interface still matches.
+
+CI runs the same syntax check and `node --test` suite on pull requests and pushes to `main`.
+
+## License
+
+No `LICENSE` file is included yet. Before redistributing or treating this as open source with clear terms, choose a license (for example MIT, Apache-2.0, or a source-available option) and add a root `LICENSE` file. Until then, default copyright rules apply.
